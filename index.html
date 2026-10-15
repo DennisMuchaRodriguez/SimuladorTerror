@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Noche de Slashers</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=Special+Elite&family=VT323&display=swap">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="app">
+  <header class="cabecera">
+    <div class="marca"><span class="rec" aria-hidden="true">● REC</span><h1>Noche de Slashers</h1></div>
+    <p class="lema">Arma tu grupo, elige a los asesinos y el lugar, y mira minuto a minuto si sobreviven a la noche.</p>
+  </header>
+
+  <!-- ============ CONFIGURACIÓN ============ -->
+  <main id="pantalla-config">
+    <section class="paso" aria-labelledby="t-grupo">
+      <div class="paso-cab">
+        <span class="paso-num">1</span><h2 id="t-grupo">Tu grupo</h2>
+        <p class="paso-nota">La primera tarjeta eres tú. Cambia nombres, edades, el rol, las seis características, el arma y hasta tres rasgos. Máximo 8 personas.</p>
+      </div>
+      <div id="grupo" class="grupo-grid"></div>
+      <button id="btn-agregar" class="btn btn-sec" type="button">+ Añadir persona</button>
+    </section>
+
+    <section class="paso" aria-labelledby="t-asesinos">
+      <div class="paso-cab">
+        <span class="paso-num">2</span><h2 id="t-asesinos">Los asesinos</h2>
+        <p class="paso-nota">Elige cuántos de cada uno (hasta 6 en total). Cada uno ataca como en sus películas: unos acechan en silencio, otros entran a lo bruto.</p>
+      </div>
+      <div id="asesinos" class="asesinos-grid"></div>
+    </section>
+
+    <section class="paso" aria-labelledby="t-lugar">
+      <div class="paso-cab">
+        <span class="paso-num">3</span><h2 id="t-lugar">El lugar</h2>
+        <p class="paso-nota">El lugar decide si hay señal, si llega la ayuda, dónde esconderse y cómo escapar.</p>
+      </div>
+      <div id="mapas" class="mapas-grid"></div>
+    </section>
+
+    <section class="paso" aria-labelledby="t-reglas">
+      <div class="paso-cab"><span class="paso-num">4</span><h2 id="t-reglas">Reglas de la noche</h2></div>
+      <div class="opciones-fila">
+        <label class="interruptor"><input type="checkbox" id="op-celulares" checked>
+          <span>Tienen celulares<small>Si hay señal pueden pedir ayuda. Desmárcalo para una noche al estilo de los 80.</small></span></label>
+        <label class="interruptor"><input type="checkbox" id="op-traidor">
+          <span>Hay un traidor en el grupo<small>Uno de tus amigos, al azar, es un Ghostface más y se revela cuando nadie lo ve.</small></span></label>
+        <label class="campo-semilla" for="op-semilla">Noche nº <input type="number" id="op-semilla" placeholder="al azar" min="1" inputmode="numeric"></label>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ SIMULACIÓN ============ -->
+  <main id="pantalla-sim" hidden>
+    <div class="sim-barra" id="sim-barra">
+      <div class="reloj" aria-live="off"><span class="rec-punto" aria-hidden="true"></span><span id="reloj">22:30</span></div>
+      <div id="chips" class="chips"></div>
+      <div class="controles">
+        <button id="btn-pausa" class="btn btn-icono" type="button" aria-label="Pausar">❚❚</button>
+        <div class="velocidades" role="group" aria-label="Velocidad">
+          <button type="button" data-vel="0.5">½×</button><button type="button" data-vel="1" class="activo">1×</button><button type="button" data-vel="2">2×</button><button type="button" data-vel="4">4×</button><button type="button" data-vel="8">8×</button>
+        </div>
+        <button id="btn-camara" class="btn btn-sec" type="button">Seguir la acción</button>
+      </div>
+    </div>
+    <div class="sim-cuerpo">
+      <div class="sim-izq">
+        <div class="escena"><canvas id="lienzo" aria-label="Mapa de la simulación"></canvas></div>
+        <div class="leyenda">
+          <span style="--m:#3987e5">Tu grupo (círculos de color con su inicial)</span>
+          <span style="--m:#d2463a">Asesinos (borde rojo)</span>
+          <span style="--m:#f0b04a">Toca a alguien para seguirlo</span>
+          <span style="--m:#3e2f3a">Escondites</span>
+        </div>
+        <div id="estado" class="estado"></div>
+      </div>
+      <aside class="relato-col" aria-labelledby="t-relato">
+        <h3><span id="t-relato">Lo que pasa</span><label><input type="checkbox" id="solo-imp"> Solo lo importante</label></h3>
+        <ol id="relato" class="relato"></ol>
+      </aside>
+    </div>
+    <div class="sim-pie">
+      <button id="btn-config" class="btn btn-sec" type="button">← Cambiar el grupo</button>
+      <button id="btn-repetir" class="btn btn-sec" type="button">Repetir esta noche</button>
+      <button id="btn-otra" class="btn btn-sec" type="button">Otra noche</button>
+      <button id="btn-prob-sim" class="btn btn-sec" type="button">Calcular probabilidades</button>
+    </div>
+  </main>
+
+  <!-- ============ PROBABILIDADES ============ -->
+  <main id="pantalla-lote" hidden>
+    <div class="lote-cab">
+      <h2>¿Cuántas veces sobreviven?</h2>
+      <p id="lote-desc"></p>
+    </div>
+    <div class="progreso"><i id="lote-barra"></i></div>
+    <p id="lote-estado" class="lote-estado"></p>
+    <div id="lote-res" class="lote-res" hidden></div>
+    <div class="lote-pie">
+      <button id="btn-lote-volver" class="btn btn-sec" type="button">← Cambiar el grupo</button>
+      <button id="btn-lote-peor" class="btn btn-sec" type="button" hidden>Ver la peor noche</button>
+      <button id="btn-lote-mejor" class="btn btn-sec" type="button" hidden>Ver la mejor noche</button>
+      <button id="btn-lote-mas" class="btn btn-sec" type="button" hidden>Simular 100 noches más</button>
+    </div>
+  </main>
+
+  <div id="final" class="final" hidden role="dialog" aria-modal="true" aria-labelledby="final-titulo"></div>
+  <div id="tip" class="tip" hidden></div>
+
+  <footer id="barra-config" class="barra-accion">
+    <div class="dentro">
+      <p id="resumen" class="resumen"></p>
+      <button id="btn-prob" class="btn btn-sec" type="button"><span class="largo">Calcular probabilidades</span><span class="corto">Probabilidades</span></button>
+      <button id="btn-ver" class="btn btn-primario" type="button">▶ Ver la noche</button>
+    </div>
+  </footer>
+</div>
+<script src="js/datos.js"></script>
+<script src="js/mapas.js"></script>
+<script src="js/textos.js"></script>
+<script src="js/motor.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

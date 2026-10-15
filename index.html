@@ -14,7 +14,7 @@
 <div class="app">
   <header class="cabecera">
     <div class="marca"><span class="rec" aria-hidden="true">● REC</span><h1>Noche de Slashers</h1></div>
-    <p class="lema">Arma tu grupo, elige a los asesinos y el lugar, y mira minuto a minuto si sobreviven a la noche.</p>
+    <p class="lema">Arma tu grupo, elige a los asesinos y el lugar. No hay escapatoria: para salir de esta noche tienen que eliminar al asesino. Mira quién lo logra y con qué heridas.</p>
   </header>
 
   <!-- ============ CONFIGURACIÓN ============ -->
@@ -39,7 +39,7 @@
     <section class="paso" aria-labelledby="t-lugar">
       <div class="paso-cab">
         <span class="paso-num">3</span><h2 id="t-lugar">El lugar</h2>
-        <p class="paso-nota">El lugar decide si hay señal, si llega la ayuda, dónde esconderse y cómo escapar.</p>
+        <p class="paso-nota">El lugar decide qué tan oscuro está, dónde hay armas para agarrar y dónde puede tenderse una emboscada.</p>
       </div>
       <div id="mapas" class="mapas-grid"></div>
     </section>
@@ -48,7 +48,7 @@
       <div class="paso-cab"><span class="paso-num">4</span><h2 id="t-reglas">Reglas de la noche</h2></div>
       <div class="opciones-fila">
         <label class="interruptor"><input type="checkbox" id="op-celulares" checked>
-          <span>Tienen celulares<small>Si hay señal pueden pedir ayuda. Desmárcalo para una noche al estilo de los 80.</small></span></label>
+          <span>Tienen celulares<small>Alumbran con la linterna del celular y, si hay señal, avisan al grupo por mensaje. Nadie va a venir a salvarlos. Desmárcalo para una noche al estilo de los 80.</small></span></label>
         <label class="interruptor"><input type="checkbox" id="op-traidor">
           <span>Hay un traidor en el grupo<small>Uno de tus amigos, al azar, es un Ghostface más y se revela cuando nadie lo ve.</small></span></label>
         <label class="campo-semilla" for="op-semilla">Noche nº <input type="number" id="op-semilla" placeholder="al azar" min="1" inputmode="numeric"></label>

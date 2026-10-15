@@ -112,7 +112,311 @@
     return c;
   }
 
+  /* ---------- armas ---------- */
+  // Todas se dibujan con la empuñadura en el origen y apuntando hacia +x; u = radio del cuerpo de quien la lleva.
+  const AC = { acero: '#c3c8d0', aceroOsc: '#7c828c', filo: '#f2f4f8', madera: '#7a5432', maderaOsc: '#4b301b', negro: '#1c1c21', laton: '#c9a24a', sangre: 'rgba(140,16,16,0.88)' };
+  // Largo desde la mano, en radios del cuerpo (de ahí sale el fogonazo)
+  const LARGO = { cuchillo: 1.0, cocina: 1.3, buck: 1.22, machete: 1.62, hacha: 1.45, bate: 1.45, motosierra: 1.85, arco: 0.6, pistola: 0.62, revolver: 0.82, escopeta: 1.52, rifle: 1.6 };
+  const FUEGO = { pistola: 1, revolver: 1, escopeta: 1, rifle: 1 };
+  const ESTOCADA = { cuchillo: 1, cocina: 1, buck: 1 };
+  const ESCALA_ARMA = 1.3; // las armas se dibujan algo más grandes que en la realidad para que se vean
+  const ARMA_TEXTO = { 'machete': 'machete', 'cuchillo de cocina': 'cocina', 'cuchillo Buck 120': 'buck', 'motosierra': 'motosierra', 'hacha': 'hacha', 'cuchillo': 'cuchillo' };
+
+  function armaDeAsesino(clase, j) {
+    if (clase === 'canibal') return j === 0 ? 'arco' : 'hacha';
+    if (clase === 'extranos') return j === 0 ? 'hacha' : 'cuchillo';
+    return { jason: 'machete', michael: 'cocina', ghostface: 'buck', leatherface: 'motosierra' }[clase] || 'cuchillo';
+  }
+
+  function rect(x, x0, y0, w, h, r) {
+    r = Math.min(r || 0, w / 2, h / 2);
+    x.beginPath();
+    x.moveTo(x0 + r, y0); x.lineTo(x0 + w - r, y0); x.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r);
+    x.lineTo(x0 + w, y0 + h - r); x.quadraticCurveTo(x0 + w, y0 + h, x0 + w - r, y0 + h);
+    x.lineTo(x0 + r, y0 + h); x.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+    x.lineTo(x0, y0 + r); x.quadraticCurveTo(x0, y0, x0 + r, y0); x.closePath();
+  }
+
+  // Mango con remaches
+  function mango(x, u, a, b, h, color, remaches, colorRemache) {
+    rect(x, a * u, -h / 2 * u, (b - a) * u, h * u, h * 0.35 * u);
+    x.fillStyle = color; x.fill();
+    x.fillStyle = 'rgba(255,255,255,0.12)'; x.fillRect(a * u, -h / 2 * u, (b - a) * u, h * 0.22 * u);
+    x.fillStyle = colorRemache || AC.acero;
+    for (let k = 0; k < (remaches || 0); k++) { x.beginPath(); x.arc((a + (b - a) * (k + 0.5) / remaches) * u, 0, h * 0.16 * u, 0, 7); x.fill(); }
+  }
+
+  // Hoja con lomo recto y filo curvo hasta la punta; con manchas de sangre si ya mató
+  function hoja(x, u, l0, l1, alto, o, color) {
+    const ancho = l1 - l0;
+    const camino = () => {
+      x.beginPath();
+      x.moveTo(l0 * u, -alto * 0.45 * u);
+      x.lineTo((l1 - ancho * 0.14) * u, -alto * 0.45 * u);
+      x.lineTo(l1 * u, -alto * 0.3 * u);
+      x.quadraticCurveTo((l1 - ancho * 0.18) * u, alto * 0.58 * u, (l0 + ancho * 0.3) * u, alto * 0.55 * u);
+      x.lineTo(l0 * u, alto * 0.55 * u);
+      x.closePath();
+    };
+    camino();
+    x.fillStyle = color || AC.acero; x.fill();
+    x.strokeStyle = AC.aceroOsc; x.lineWidth = 0.035 * u;
+    x.beginPath(); x.moveTo(l0 * u, -alto * 0.42 * u); x.lineTo((l1 - ancho * 0.14) * u, -alto * 0.42 * u); x.stroke();
+    x.strokeStyle = AC.filo; x.lineWidth = 0.045 * u;
+    x.beginPath(); x.moveTo((l0 + ancho * 0.3) * u, alto * 0.5 * u); x.quadraticCurveTo((l1 - ancho * 0.2) * u, alto * 0.52 * u, l1 * u, -alto * 0.3 * u); x.stroke();
+    if (o.sangre) {
+      x.save(); camino(); x.clip();
+      x.fillStyle = AC.sangre;
+      for (let k = 0; k < 5; k++) {
+        const px = l0 + ancho * (0.4 + 0.6 * hash(k * 3 + 1)), py = (hash(k * 5 + 2) - 0.3) * alto;
+        x.beginPath(); x.arc(px * u, py * u, (0.08 + 0.1 * hash(k + 7)) * alto * 2.2 * u, 0, 7); x.fill();
+      }
+      x.fillRect((l1 - ancho * 0.35) * u, -alto * u, ancho * 0.4 * u, alto * 2 * u);
+      x.restore();
+    }
+  }
+
+  function fogonazo(x, u, largo, f) {
+    if (f <= 0) return;
+    const cx = largo * u;
+    const g = x.createRadialGradient(cx, 0, 0, cx, 0, 0.9 * u * f + 0.01);
+    g.addColorStop(0, 'rgba(255,240,180,' + 0.8 * f + ')'); g.addColorStop(1, 'rgba(255,170,60,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(cx, 0, 0.9 * u * f + 0.01, 0, 7); x.fill();
+    x.fillStyle = 'rgba(255,226,140,' + f + ')';
+    x.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2, rad = (k % 2 ? 0.12 : (k === 0 ? 0.7 : 0.32)) * u * (0.5 + f);
+      const px = cx + Math.cos(a) * rad, py = Math.sin(a) * rad * 0.7;
+      if (k) x.lineTo(px, py); else x.moveTo(px, py);
+    }
+    x.closePath(); x.fill();
+  }
+
+  function dibujarArma(x, tipo, u, o) {
+    o = o || {};
+    switch (tipo) {
+      case 'cuchillo':
+        mango(x, u, -0.28, 0.14, 0.17, '#3a2416', 2);
+        x.fillStyle = AC.aceroOsc; x.fillRect(0.12 * u, -0.12 * u, 0.06 * u, 0.24 * u);
+        hoja(x, u, 0.18, 1.0, 0.18, o);
+        break;
+      case 'cocina':
+        mango(x, u, -0.32, 0.18, 0.18, AC.negro, 3);
+        x.fillStyle = AC.aceroOsc; x.fillRect(0.16 * u, -0.11 * u, 0.05 * u, 0.22 * u);
+        hoja(x, u, 0.2, 1.3, 0.3, o, '#d3d7de');
+        break;
+      case 'buck':
+        mango(x, u, -0.3, 0.16, 0.17, '#111114', 2, AC.laton);
+        x.fillStyle = AC.laton; x.fillRect(0.14 * u, -0.14 * u, 0.07 * u, 0.28 * u);
+        x.beginPath(); x.arc(-0.3 * u, 0, 0.09 * u, 0, 7); x.fill();
+        hoja(x, u, 0.21, 1.22, 0.22, o);
+        x.strokeStyle = 'rgba(80,86,96,0.7)'; x.lineWidth = 0.03 * u;
+        x.beginPath(); x.moveTo(0.3 * u, 0.0); x.lineTo(0.85 * u, 0.0); x.stroke();
+        break;
+      case 'machete':
+        mango(x, u, -0.36, 0.14, 0.2, '#3b2a1c', 3);
+        x.fillStyle = '#5b5f66'; x.fillRect(0.12 * u, -0.13 * u, 0.06 * u, 0.26 * u);
+        hoja(x, u, 0.18, 1.62, 0.34, o, '#b2b7be');
+        x.fillStyle = 'rgba(90,70,50,0.35)';
+        for (let k = 0; k < 4; k++) { x.beginPath(); x.arc((0.45 + k * 0.28) * u, (hash(k + 40) - 0.5) * 0.18 * u, 0.04 * u, 0, 7); x.fill(); }
+        break;
+      case 'hacha':
+        rect(x, -0.32 * u, -0.065 * u, 1.66 * u, 0.13 * u, 0.06 * u);
+        x.fillStyle = AC.madera; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.1)'; x.fillRect(-0.3 * u, -0.06 * u, 1.6 * u, 0.03 * u);
+        x.fillStyle = AC.maderaOsc; x.fillRect(-0.32 * u, -0.07 * u, 0.3 * u, 0.14 * u);
+        x.beginPath();
+        x.moveTo(1.08 * u, -0.1 * u); x.lineTo(1.3 * u, -0.1 * u); x.lineTo(1.3 * u, 0.1 * u);
+        x.lineTo(1.46 * u, 0.4 * u); x.quadraticCurveTo(1.2 * u, 0.56 * u, 0.94 * u, 0.4 * u);
+        x.lineTo(1.08 * u, 0.1 * u); x.closePath();
+        x.fillStyle = '#9ba1aa'; x.fill();
+        x.fillStyle = '#6d727b'; x.fillRect(1.1 * u, -0.2 * u, 0.18 * u, 0.12 * u);
+        x.strokeStyle = AC.filo; x.lineWidth = 0.05 * u;
+        x.beginPath(); x.moveTo(1.44 * u, 0.42 * u); x.quadraticCurveTo(1.2 * u, 0.56 * u, 0.96 * u, 0.42 * u); x.stroke();
+        if (o.sangre) {
+          x.fillStyle = AC.sangre;
+          x.beginPath(); x.ellipse(1.2 * u, 0.4 * u, 0.2 * u, 0.08 * u, 0, 0, 7); x.fill();
+          x.beginPath(); x.arc(1.1 * u, 0.25 * u, 0.05 * u, 0, 7); x.fill();
+        }
+        break;
+      case 'bate':
+        x.beginPath();
+        x.moveTo(-0.3 * u, -0.05 * u); x.lineTo(0.45 * u, -0.06 * u);
+        x.quadraticCurveTo(0.95 * u, -0.14 * u, 1.32 * u, -0.14 * u);
+        x.arc(1.32 * u, 0, 0.14 * u, -Math.PI / 2, Math.PI / 2);
+        x.quadraticCurveTo(0.95 * u, 0.14 * u, 0.45 * u, 0.06 * u); x.lineTo(-0.3 * u, 0.05 * u); x.closePath();
+        x.fillStyle = '#c49a62'; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.16)'; x.fillRect(0.5 * u, -0.1 * u, 0.85 * u, 0.04 * u);
+        x.fillStyle = '#26262b'; x.fillRect(-0.3 * u, -0.055 * u, 0.42 * u, 0.11 * u);
+        x.beginPath(); x.arc(-0.32 * u, 0, 0.08 * u, 0, 7); x.fill();
+        if (o.sangre) { x.fillStyle = AC.sangre; for (let k = 0; k < 4; k++) { x.beginPath(); x.arc((1.0 + 0.3 * hash(k + 20)) * u, (hash(k + 21) - 0.5) * 0.2 * u, 0.06 * u, 0, 7); x.fill(); } }
+        break;
+      case 'motosierra': {
+        // espada y cadena
+        rect(x, 0.45 * u, -0.11 * u, 1.4 * u, 0.22 * u, 0.11 * u);
+        x.fillStyle = '#8f959e'; x.fill();
+        x.strokeStyle = '#5d636b'; x.lineWidth = 0.03 * u;
+        x.beginPath(); x.moveTo(0.55 * u, 0); x.lineTo(1.72 * u, 0); x.stroke();
+        x.save();
+        x.setLineDash([0.07 * u, 0.06 * u]);
+        x.lineDashOffset = o.activa ? -(o.t || 0) * 9 * u : 0;
+        rect(x, 0.43 * u, -0.135 * u, 1.45 * u, 0.27 * u, 0.135 * u);
+        x.strokeStyle = '#dfe2e7'; x.lineWidth = 0.06 * u; x.stroke();
+        if (o.sangre) { x.strokeStyle = AC.sangre; x.setLineDash([0.2 * u, 0.35 * u]); x.stroke(); }
+        x.restore();
+        // motor y asas
+        rect(x, -0.22 * u, -0.3 * u, 0.7 * u, 0.58 * u, 0.1 * u); x.fillStyle = '#c4762a'; x.fill();
+        rect(x, -0.1 * u, -0.22 * u, 0.44 * u, 0.3 * u, 0.06 * u); x.fillStyle = '#e09a3c'; x.fill();
+        x.fillStyle = '#2b2b30'; x.fillRect(0.0, 0.12 * u, 0.3 * u, 0.1 * u);
+        x.strokeStyle = '#26262b'; x.lineWidth = 0.08 * u;
+        rect(x, -0.55 * u, -0.12 * u, 0.36 * u, 0.24 * u, 0.08 * u); x.stroke();
+        x.beginPath(); x.moveTo(0.22 * u, -0.42 * u); x.quadraticCurveTo(0.34 * u, 0, 0.22 * u, 0.4 * u); x.stroke();
+        if (o.activa) {
+          for (let k = 0; k < 3; k++) {
+            const f = ((o.t || 0) * 1.6 + k / 3) % 1;
+            x.fillStyle = 'rgba(150,150,155,' + (0.35 * (1 - f)) + ')';
+            x.beginPath(); x.arc((-0.35 - f * 0.7) * u, (-0.32 - f * 0.4) * u, (0.06 + f * 0.16) * u, 0, 7); x.fill();
+          }
+        }
+        break;
+      }
+      case 'arco': {
+        u *= 1.12;
+        const ten = o.tensa || 0, tx = -0.28, ty = 0.53, cx = tx - 0.38 * ten;
+        x.strokeStyle = 'rgba(232,226,210,0.85)'; x.lineWidth = 0.025 * u;
+        x.beginPath(); x.moveTo(tx * u, -ty * u); x.lineTo(cx * u, 0); x.lineTo(tx * u, ty * u); x.stroke();
+        x.strokeStyle = '#6b4a26'; x.lineWidth = 0.1 * u;
+        x.beginPath(); x.arc(-0.55 * u, 0, 0.6 * u, -1.1, 1.1); x.stroke();
+        x.strokeStyle = '#2d1d10'; x.lineWidth = 0.13 * u;
+        x.beginPath(); x.arc(-0.55 * u, 0, 0.6 * u, -0.22, 0.22); x.stroke();
+        if (o.flecha) {
+          x.strokeStyle = '#b08a52'; x.lineWidth = 0.04 * u;
+          x.beginPath(); x.moveTo(cx * u, 0); x.lineTo(0.45 * u, 0); x.stroke();
+          x.fillStyle = AC.acero; x.beginPath(); x.moveTo(0.6 * u, 0); x.lineTo(0.44 * u, -0.07 * u); x.lineTo(0.44 * u, 0.07 * u); x.closePath(); x.fill();
+          x.fillStyle = '#b5302b';
+          x.beginPath(); x.moveTo((cx + 0.02) * u, 0); x.lineTo((cx + 0.16) * u, 0); x.lineTo((cx + 0.04) * u, -0.08 * u); x.closePath(); x.fill();
+          x.beginPath(); x.moveTo((cx + 0.02) * u, 0); x.lineTo((cx + 0.16) * u, 0); x.lineTo((cx + 0.04) * u, 0.08 * u); x.closePath(); x.fill();
+        }
+        break;
+      }
+      case 'pistola':
+        rect(x, -0.14 * u, -0.07 * u, 0.2 * u, 0.14 * u, 0.04 * u); x.fillStyle = '#5a4a3c'; x.fill();
+        rect(x, -0.05 * u, -0.085 * u, 0.67 * u, 0.17 * u, 0.03 * u); x.fillStyle = '#6a707b'; x.fill();
+        x.strokeStyle = '#1a1b20'; x.lineWidth = 0.025 * u; x.stroke();
+        x.fillStyle = '#b4bac4'; x.fillRect(0.0, -0.085 * u, 0.6 * u, 0.045 * u);
+        x.fillStyle = '#2a2c33'; for (let k = 0; k < 4; k++) x.fillRect((0.02 + k * 0.05) * u, -0.03 * u, 0.02 * u, 0.09 * u);
+        break;
+      case 'revolver':
+        rect(x, -0.22 * u, -0.075 * u, 0.28 * u, 0.15 * u, 0.06 * u); x.fillStyle = AC.madera; x.fill();
+        x.fillStyle = AC.aceroOsc; x.fillRect(0.02 * u, -0.07 * u, 0.2 * u, 0.14 * u);
+        x.fillStyle = AC.acero; x.beginPath(); x.arc(0.2 * u, 0, 0.115 * u, 0, 7); x.fill();
+        x.fillStyle = '#4a4f57'; for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; x.beginPath(); x.arc(0.2 * u + Math.cos(a) * 0.065 * u, Math.sin(a) * 0.065 * u, 0.022 * u, 0, 7); x.fill(); }
+        rect(x, 0.28 * u, -0.045 * u, 0.54 * u, 0.09 * u, 0.02 * u); x.fillStyle = '#aeb3bb'; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0.3 * u, -0.045 * u, 0.5 * u, 0.025 * u);
+        break;
+      case 'escopeta':
+        x.beginPath(); x.moveTo(-0.5 * u, -0.12 * u); x.lineTo(0.14 * u, -0.06 * u); x.lineTo(0.14 * u, 0.06 * u); x.lineTo(-0.5 * u, 0.13 * u); x.closePath();
+        x.fillStyle = AC.madera; x.fill();
+        x.fillStyle = '#211812'; x.fillRect(-0.54 * u, -0.12 * u, 0.06 * u, 0.25 * u);
+        rect(x, 0.12 * u, -0.075 * u, 0.36 * u, 0.15 * u, 0.02 * u); x.fillStyle = '#4a4e57'; x.fill();
+        rect(x, 0.46 * u, -0.05 * u, 1.06 * u, 0.1 * u, 0.02 * u); x.fillStyle = '#737a85'; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0.48 * u, -0.05 * u, 1.02 * u, 0.03 * u);
+        rect(x, 0.64 * u, -0.085 * u, 0.34 * u, 0.17 * u, 0.04 * u); x.fillStyle = AC.maderaOsc; x.fill();
+        x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = 0.02 * u;
+        for (let k = 0; k < 5; k++) { x.beginPath(); x.moveTo((0.68 + k * 0.06) * u, -0.08 * u); x.lineTo((0.68 + k * 0.06) * u, 0.08 * u); x.stroke(); }
+        break;
+      case 'rifle':
+        x.beginPath(); x.moveTo(-0.5 * u, -0.1 * u); x.lineTo(0.2 * u, -0.055 * u); x.lineTo(0.55 * u, -0.05 * u); x.lineTo(0.55 * u, 0.06 * u); x.lineTo(0.2 * u, 0.06 * u); x.lineTo(-0.5 * u, 0.12 * u); x.closePath();
+        x.fillStyle = '#8a5a2e'; x.fill();
+        rect(x, 0.15 * u, -0.04 * u, 1.45 * u, 0.08 * u, 0.02 * u); x.fillStyle = '#6a707b'; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.3)'; x.fillRect(0.55 * u, -0.04 * u, 1.03 * u, 0.025 * u);
+        rect(x, 0.22 * u, -0.1 * u, 0.6 * u, 0.2 * u, 0.06 * u); x.fillStyle = '#2e3138'; x.fill();
+        x.fillStyle = 'rgba(255,255,255,0.22)'; x.fillRect(0.28 * u, -0.1 * u, 0.48 * u, 0.04 * u);
+        x.fillStyle = 'rgba(140,190,230,0.85)'; x.beginPath(); x.ellipse(0.82 * u, 0, 0.03 * u, 0.08 * u, 0, 0, 7); x.fill();
+        x.fillStyle = '#9ea3ad'; x.beginPath(); x.arc(0.3 * u, 0.15 * u, 0.04 * u, 0, 7); x.fill();
+        break;
+    }
+    if (FUEGO[tipo]) fogonazo(x, u, LARGO[tipo], o.fogonazo || 0);
+  }
+
+  const suave = e => 1 - (1 - e) * (1 - e);
+  /* Dibuja el arma en la mano de un personaje: pose, tajo, estocada o retroceso.
+     Se llama con el lienzo ya girado hacia donde mira el personaje (r = radio del cuerpo).
+     a.golpe / a.tiro: avance de la animación (0 a 1) o -1 si no hay. Devuelve dónde quedó la mano. */
+  function armaEnMano(x, tipo, r, a) {
+    if (!tipo || tipo === 'ninguna') return null;
+    const golpe = a.golpe >= 0 && a.golpe < 1 ? a.golpe : -1;
+    const tiro = a.tiro >= 0 && a.tiro < 1 ? a.tiro : -1;
+    let hx, hy, ang;
+    if (tipo === 'motosierra') {
+      const vib = a.activa ? Math.sin((a.t || 0) * 70) * 0.03 * r : 0;
+      const emp = golpe >= 0 ? Math.sin(Math.PI * golpe) * 0.45 * r : 0;
+      hx = 0.72 * r + emp + vib; hy = 0.22 * r + vib; ang = -0.08 + (golpe >= 0 ? Math.sin(golpe * 18) * 0.12 : 0);
+    } else if (tipo === 'arco') {
+      hx = 1.0 * r; hy = -0.12 * r; ang = 0;
+      if (golpe >= 0 && !a.disparoArco) { hx += Math.sin(Math.PI * golpe) * 0.4 * r; ang = -Math.sin(Math.PI * golpe) * 0.8; }
+    } else if (FUEGO[tipo]) {
+      const larga = tipo === 'escopeta' || tipo === 'rifle';
+      hx = (larga ? 0.62 : 0.85) * r; hy = (larga ? 0.42 : 0.34) * r; ang = larga ? -0.16 : -0.2;
+      if (tiro >= 0) { const k = 1 - suave(tiro); hx -= k * 0.25 * r; ang -= k * 0.3; }
+      else if (golpe >= 0) { hx += Math.sin(Math.PI * golpe) * 0.5 * r; ang += Math.sin(Math.PI * golpe) * 0.5; }
+    } else if (ESTOCADA[tipo]) {
+      const ext = golpe >= 0 ? Math.sin(Math.PI * golpe) : 0;
+      const fi = 0.62 - ext * 0.35, rad = (0.95 + ext * 0.75) * r;
+      hx = Math.cos(fi) * rad; hy = Math.sin(fi) * rad; ang = fi - 0.45 - ext * 0.2;
+    } else {
+      // tajo: levanta hacia el costado, barre por delante y vuelve
+      let fi = 0.78;
+      if (golpe >= 0) {
+        if (golpe < 0.2) fi = 0.78 + (golpe / 0.2) * 0.8;
+        else if (golpe < 0.55) fi = 1.58 - suave((golpe - 0.2) / 0.35) * 2.4;
+        else fi = -0.82 + ((golpe - 0.55) / 0.45) * 1.6;
+      }
+      const rad = (golpe >= 0.2 && golpe < 0.55 ? 1.1 : 0.95) * r;
+      hx = Math.cos(fi) * rad; hy = Math.sin(fi) * rad; ang = fi - 0.58;
+    }
+    x.save();
+    x.translate(hx, hy); x.rotate(ang);
+    dibujarArma(x, tipo, r * ESCALA_ARMA, { sangre: a.sangre, activa: a.activa, t: a.t, tensa: a.tensa, flecha: a.flecha, fogonazo: tiro >= 0 && tiro < 0.5 ? 1 - tiro * 2 : 0 });
+    x.restore();
+    return [hx, hy];
+  }
+
+  // Estela blanca del tajo
+  function estela(x, tipo, r, golpe) {
+    if (!(golpe >= 0.2 && golpe < 0.6) || FUEGO[tipo] || tipo === 'arco' || tipo === 'motosierra' || ESTOCADA[tipo]) return;
+    const e = (golpe - 0.2) / 0.4, largo = (LARGO[tipo] || 1) * r * ESCALA_ARMA + r;
+    x.strokeStyle = 'rgba(240,240,245,' + (0.5 * (1 - e)) + ')'; x.lineWidth = 0.18 * r;
+    x.beginPath(); x.arc(0, 0, largo * 0.92, 1.0 - suave(e) * 2.2, 1.0 - suave(e) * 2.2 + 0.9); x.stroke();
+  }
+
+  function mano(x, p, r, color) {
+    if (!p) return;
+    x.fillStyle = color; x.beginPath(); x.arc(p[0], p[1], r * 0.17, 0, 7); x.fill();
+    x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = r * 0.04; x.stroke();
+  }
+
+  // Icono de un arma (configuración y fichas)
+  function iconoArma(canvas, tipo, w, h) {
+    w = w || canvas.clientWidth || 64; h = h || canvas.clientHeight || 26;
+    const x = prepararLienzo(canvas, w, h);
+    x.clearRect(0, 0, w, h);
+    if (!tipo || tipo === 'ninguna') {
+      x.strokeStyle = 'rgba(236,229,211,0.35)'; x.lineWidth = 1.5;
+      x.beginPath(); x.arc(w / 2, h / 2, Math.min(w, h) * 0.28, 0, 7); x.moveTo(w / 2 - h * 0.2, h / 2 + h * 0.2); x.lineTo(w / 2 + h * 0.2, h / 2 - h * 0.2); x.stroke();
+      return;
+    }
+    const ancho = (LARGO[tipo] || 1) + (tipo === 'arco' ? 0.9 : (tipo === 'motosierra' ? 0.6 : 0.55));
+    const u = Math.min((w - 6) / ancho, h / (tipo === 'arco' ? 1.75 : (tipo === 'motosierra' || tipo === 'hacha' ? 1.25 : 0.7)));
+    x.save();
+    const izq = tipo === 'arco' ? 0.85 : (tipo === 'motosierra' ? 0.6 : 0.52);
+    x.translate((w - ancho * u) / 2 + izq * u, h / 2 + (tipo === 'hacha' ? -0.15 * u : 0));
+    dibujarArma(x, tipo, u, { flecha: true, tensa: 0.3 });
+    x.restore();
+  }
+
   /* ---------- figuras ---------- */
+  const MANO_ASESINO = { jason: '#c9b79a', michael: '#d8c2a2', ghostface: '#111114', leatherface: '#b88a64', canibal: '#a57a58', extranos: '#dcc4a0', chucky: '#f0c49c' };
   function dibujarAsesino(x, clase, j, px, py, r, dir, opts) {
     opts = opts || {};
     x.save();
@@ -120,17 +424,14 @@
     if (opts.caido) { x.rotate(Math.PI / 2); x.scale(1, 0.75); }
     const rr = clase === 'chucky' ? r * 0.72 : r * (clase === 'jason' || clase === 'leatherface' ? 1.15 : 1);
     x.fillStyle = 'rgba(0,0,0,0.45)'; x.beginPath(); x.ellipse(rr * 0.15, rr * 0.25, rr * 1.05, rr * 0.95, 0, 0, 7); x.fill();
-    // arma
+    // arma (antes del cuerpo, que tapa la empuñadura; la mano va encima)
+    const tipoArma = opts.sinArma ? null : armaDeAsesino(clase, j);
+    const anim = Object.assign({ golpe: -1, tiro: -1, t: 0 }, opts.anim || {});
+    if (opts.caido) anim.golpe = -1;
+    const ra = clase === 'chucky' ? rr * 1.2 : rr;
     x.save(); x.rotate(dir);
-    if (clase === 'leatherface') {
-      x.fillStyle = '#9a9aa2'; x.fillRect(rr * 0.6, -rr * 0.18, rr * 1.4, rr * 0.36);
-      x.fillStyle = '#d0d0d6'; for (let k = 0; k < 5; k++) x.fillRect(rr * 0.7 + k * rr * 0.26, -rr * 0.26, rr * 0.08, rr * 0.08);
-      x.fillStyle = '#c9a227'; x.fillRect(rr * 0.35, -rr * 0.25, rr * 0.35, rr * 0.5);
-    } else if (clase === 'jason' || clase === 'canibal') {
-      x.strokeStyle = '#b8bcc4'; x.lineWidth = rr * 0.18; x.beginPath(); x.moveTo(rr * 0.6, rr * 0.3); x.lineTo(rr * 1.7, rr * 0.1); x.stroke();
-    } else {
-      x.strokeStyle = '#d4d6dc'; x.lineWidth = rr * 0.14; x.beginPath(); x.moveTo(rr * 0.7, rr * 0.35); x.lineTo(rr * 1.35, rr * 0.25); x.stroke();
-    }
+    estela(x, tipoArma, ra, anim.golpe);
+    const pm = armaEnMano(x, tipoArma, ra, anim);
     x.restore();
     const cuerpo = { jason: '#4a5440', michael: '#2f3a52', ghostface: '#0e0e12', leatherface: '#6b4a30', canibal: '#4d4a2c', extranos: '#3a3530', chucky: '#3f6fb5' }[clase] || '#333';
     x.fillStyle = cuerpo; x.beginPath(); x.arc(0, 0, rr, 0, 7); x.fill();
@@ -175,7 +476,6 @@
         x.fillStyle = '#111'; x.beginPath(); x.arc(-fr * 0.3, -fr * 0.15, fr * 0.2, 0, 7); x.fill();
         x.beginPath(); x.arc(fr * 0.35, -fr * 0.25, fr * 0.09, 0, 7); x.fill();
         x.fillStyle = '#e8d7a0'; x.fillRect(-fr * 0.35, fr * 0.45, fr * 0.7, fr * 0.12);
-        if (j === 0) { x.strokeStyle = '#8a6a3a'; x.lineWidth = rr * 0.1; x.beginPath(); x.arc(-rr * 0.9, 0, rr * 0.9, -1.1, 1.1); x.stroke(); }
         break;
       case 'extranos':
         if (j === 0) {
@@ -197,6 +497,7 @@
         x.beginPath(); x.arc(0, fr * 0.35, fr * 0.3, 0.2, Math.PI - 0.2); x.stroke();
         break;
     }
+    if (pm) { x.save(); x.rotate(dir); mano(x, pm, ra, MANO_ASESINO[clase] || '#ccc'); x.restore(); }
     x.restore();
   }
 
@@ -215,7 +516,7 @@
     const g = x.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w * 0.6);
     g.addColorStop(0, 'rgba(240,176,74,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g; x.fillRect(0, 0, w, h);
-    dibujarAsesino(x, clase, j || 0, w / 2 - 4, h / 2 + 2, Math.min(w, h) * 0.28, 0.3);
+    dibujarAsesino(x, clase, j || 0, w * 0.36, h * 0.38, Math.min(w, h) * 0.19, 0.6, { anim: { flecha: true, tensa: 0.4 } });
   }
 
   function miniaturaMapa(canvas, M) {
@@ -404,14 +705,14 @@
         x.fillStyle = '#c0392b'; x.fillRect(-0.05, -0.15, 0.1, 0.3); x.fillRect(-0.15, -0.05, 0.3, 0.1);
       } else if (it.tipo === 'sueter') {
         x.fillStyle = '#b77a9a'; x.fillRect(-0.25, -0.2, 0.5, 0.4);
-      } else if (it.tipo === 'escopeta' || it.tipo === 'rifle' || it.tipo === 'revolver' || it.tipo === 'pistola') {
-        x.rotate(-0.4); x.fillStyle = '#6b4a2b'; x.fillRect(-0.35, -0.06, 0.25, 0.14);
-        x.fillStyle = '#9ea3ad'; x.fillRect(-0.12, -0.05, it.tipo === 'revolver' ? 0.3 : 0.5, 0.08);
-      } else {
-        x.rotate(-0.7); x.fillStyle = it.tipo === 'bate' ? '#a07a4a' : '#c7cbd3';
-        x.fillRect(-0.3, -0.04, 0.6, it.tipo === 'hacha' ? 0.08 : 0.07);
-        if (it.tipo === 'hacha') { x.fillStyle = '#9ea3ad'; x.fillRect(0.18, -0.16, 0.14, 0.24); }
-        if (it.tipo === 'cuchillo') { x.fillStyle = '#3a2a1a'; x.fillRect(-0.3, -0.05, 0.22, 0.1); }
+      } else if (LARGO[it.tipo]) {
+        // arma en el suelo: brillo suave para que se note
+        const g = x.createRadialGradient(0, 0, 0.05, 0, 0, 0.62);
+        g.addColorStop(0, 'rgba(240,176,74,' + (0.22 + 0.1 * Math.sin(sim.t * 3 + it.tile)) + ')'); g.addColorStop(1, 'rgba(240,176,74,0)');
+        x.fillStyle = g; x.beginPath(); x.arc(0, 0, 0.62, 0, 7); x.fill();
+        const u = Math.min(0.42, 1.05 / ((LARGO[it.tipo] || 1) + 0.5));
+        x.rotate(-0.6); x.translate(-((LARGO[it.tipo] || 1) - 0.4) * u / 2, 0);
+        dibujarArma(x, it.tipo, u, {});
       }
       x.restore();
     }
@@ -528,20 +829,9 @@
 
   Render.prototype.dibujarEntidades = function (x, a) {
     const sim = this.sim;
-    for (const k of sim.ase) {
-      if (k.fuera || k.huido) continue;
-      const p = this.interp(k, a);
-      const caido = k.derribado > 0 || k.fingido > 0 || k.muerto;
-      x.globalAlpha = k.muerto ? 0.55 : 1;
-      dibujarAsesino(x, k.clase, k.j, p.x, p.y, 0.42, k.dir, { caido });
-      x.globalAlpha = 1;
-      if (this.seleccion === k) this.anillo(x, p.x, p.y, 0.72);
-      if (!k.muerto && !k.neutralizado) {
-        const f = Math.max(0, k.hp / k.hpMax);
-        x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(p.x - 0.45, p.y - 0.8, 0.9, 0.12);
-        x.fillStyle = k.def.mortal === 'no' ? '#a8a3b8' : '#d2463a'; x.fillRect(p.x - 0.45, p.y - 0.8, 0.9 * f, 0.12);
-      }
-    }
+    const tv = sim.t + a * ((G.SIM_MOTOR && G.SIM_MOTOR.DT) || 0.1);
+    const encima = [];
+    // 1) personas (su arma va debajo del cuerpo)
     for (const p of sim.sob) {
       if (!p.vivo || p.escapado || p.enAuto || p.esAsesino) continue;
       const q = this.interp(p, a);
@@ -549,7 +839,20 @@
       if (p.agarradoPor) { q.x += Math.sin(sim.t * 40) * 0.05; q.y += Math.cos(sim.t * 37) * 0.05; }
       x.globalAlpha = p.oculto ? 0.4 : 1;
       x.fillStyle = 'rgba(0,0,0,0.45)'; x.beginPath(); x.arc(q.x + 0.06, q.y + 0.09, r, 0, 7); x.fill();
+      let pm = null;
+      const conArma = p.arma && p.arma !== 'ninguna' && !p.oculto && !p.durmiendo;
+      if (conArma) {
+        const anim = { golpe: (tv - p.ultimoGolpe) / 0.35, tiro: (tv - p.ultimoDisparo) / 0.25, t: tv, sangre: p.est && p.est.danio > 25 && !FUEGO[p.arma] };
+        const activa = (anim.golpe >= 0 && anim.golpe < 1) || (anim.tiro >= 0 && anim.tiro < 1);
+        if (activa) encima.push({ q, p, r, anim });
+        else {
+          x.save(); x.translate(q.x, q.y); x.rotate(p.dir);
+          pm = armaEnMano(x, p.arma, r, anim);
+          x.restore();
+        }
+      }
       x.fillStyle = p.color; x.beginPath(); x.arc(q.x, q.y, r, 0, 7); x.fill();
+      if (pm) { x.save(); x.translate(q.x, q.y); x.rotate(p.dir); mano(x, pm, r, '#dcae86'); x.restore(); }
       x.fillStyle = 'rgba(236,229,211,0.85)';
       x.beginPath(); x.arc(q.x + Math.cos(p.dir) * r * 0.62, q.y + Math.sin(p.dir) * r * 0.62, r * 0.2, 0, 7); x.fill();
       const f = Math.max(0, p.hp / p.hpMax);
@@ -559,10 +862,38 @@
       if (p.oculto) { x.setLineDash([0.12, 0.1]); x.strokeStyle = '#ece5d3'; x.beginPath(); x.arc(q.x, q.y, r + 0.22, 0, 7); x.stroke(); x.setLineDash([]); }
       x.globalAlpha = 1;
       if (this.seleccion === p) this.anillo(x, q.x, q.y, 0.64);
-      if ((p.arma === 'pistola' || p.arma === 'revolver' || p.arma === 'escopeta' || p.arma === 'rifle') && p.municion > 0 && !p.oculto) {
-        x.strokeStyle = '#1a1a1e'; x.lineWidth = 0.1;
-        x.beginPath(); x.moveTo(q.x + Math.cos(p.dir) * r, q.y + Math.sin(p.dir) * r); x.lineTo(q.x + Math.cos(p.dir) * (r + 0.3), q.y + Math.sin(p.dir) * (r + 0.3)); x.stroke();
+    }
+    // 2) asesinos: su arma queda por encima de quien atacan
+    for (const k of sim.ase) {
+      if (k.fuera || k.huido) continue;
+      const p = this.interp(k, a);
+      const caido = k.derribado > 0 || k.fingido > 0 || k.muerto;
+      const tipo = armaDeAsesino(k.clase, k.j);
+      const anim = { golpe: (tv - k.ultimoAtaque) / 0.4, t: tv, sangre: k.kills > 0 };
+      if (tipo === 'motosierra') anim.activa = !caido && !k.neutralizado && (k.agresivo || anim.golpe < 1);
+      if (tipo === 'arco') {
+        const it = k.intent || {};
+        anim.disparoArco = k.cd.arco > 2.75;
+        anim.flecha = k.cd.arco < 2.4;
+        anim.tensa = anim.disparoArco ? Math.max(0, 1 - anim.golpe * 3) : (it.modo === 'cazar' && it.s && sim.dist(k, it.s) < 13 ? 0.75 : 0.12);
       }
+      x.globalAlpha = k.muerto ? 0.55 : 1;
+      dibujarAsesino(x, k.clase, k.j, p.x, p.y, 0.42, k.dir, { caido, anim, sinArma: k.cd.lanza > 28.6 });
+      x.globalAlpha = 1;
+      if (this.seleccion === k) this.anillo(x, p.x, p.y, 0.72);
+      if (!k.muerto && !k.neutralizado) {
+        const f = Math.max(0, k.hp / k.hpMax);
+        x.fillStyle = 'rgba(0,0,0,0.6)'; x.fillRect(p.x - 0.45, p.y - 0.8, 0.9, 0.12);
+        x.fillStyle = k.def.mortal === 'no' ? '#a8a3b8' : '#d2463a'; x.fillRect(p.x - 0.45, p.y - 0.8, 0.9 * f, 0.12);
+      }
+    }
+    // 3) golpes y disparos de las personas en curso, por encima de todo
+    for (const e of encima) {
+      x.save(); x.translate(e.q.x, e.q.y); x.rotate(e.p.dir);
+      estela(x, e.p.arma, e.r, e.anim.golpe);
+      const pm = armaEnMano(x, e.p.arma, e.r, e.anim);
+      mano(x, pm, e.r, '#dcae86');
+      x.restore();
     }
   };
 
@@ -579,13 +910,17 @@
       switch (f.tipo) {
         case 'disparo':
           x.strokeStyle = 'rgba(255,220,120,' + (1 - e) + ')'; x.lineWidth = 0.07;
-          x.beginPath(); x.moveTo(f.x, f.y); x.lineTo(f.x2, f.y2); x.stroke();
-          x.fillStyle = 'rgba(255,230,150,' + (1 - e) + ')'; x.beginPath(); x.arc(f.x, f.y, 0.3 * (1 - e) + 0.1, 0, 7); x.fill();
+          x.beginPath(); x.moveTo(f.x + (f.x2 - f.x) * e * 0.5, f.y + (f.y2 - f.y) * e * 0.5); x.lineTo(f.x2, f.y2); x.stroke();
           break;
         case 'tajo': {
-          const ang = Math.atan2(f.y2 - f.y, f.x2 - f.x);
-          x.strokeStyle = 'rgba(240,240,245,' + (1 - e) + ')'; x.lineWidth = 0.09;
-          x.beginPath(); x.arc(f.x, f.y, 0.85, ang - 0.9 + e * 0.6, ang + 0.4 + e * 0.6); x.stroke();
+          // corte rojo sobre la víctima, cruzado a la dirección del golpe
+          const ang = Math.atan2(f.y2 - f.y, f.x2 - f.x) + Math.PI / 2, l = 0.25 + 0.35 * Math.min(1, e * 3);
+          x.strokeStyle = 'rgba(214,40,40,' + (1 - e) + ')'; x.lineWidth = 0.07;
+          for (let k = -1; k <= 1; k++) {
+            const ox = Math.cos(ang - Math.PI / 2) * k * 0.13, oy = Math.sin(ang - Math.PI / 2) * k * 0.13;
+            x.beginPath(); x.moveTo(f.x2 + ox - Math.cos(ang + 0.3) * l, f.y2 + oy - Math.sin(ang + 0.3) * l);
+            x.lineTo(f.x2 + ox + Math.cos(ang + 0.3) * l, f.y2 + oy + Math.sin(ang + 0.3) * l); x.stroke();
+          }
           break;
         }
         case 'golpe':
@@ -598,9 +933,21 @@
           break;
         case 'lanza': case 'flecha': {
           const px = f.x + (f.x2 - f.x) * e, py = f.y + (f.y2 - f.y) * e;
-          x.save(); x.translate(px, py); x.rotate(f.tipo === 'lanza' ? sim.t * 25 : Math.atan2(f.y2 - f.y, f.x2 - f.x));
-          x.strokeStyle = f.tipo === 'lanza' ? '#c7cbd3' : '#a07a4a'; x.lineWidth = 0.08;
-          x.beginPath(); x.moveTo(-0.35, 0); x.lineTo(0.35, 0); x.stroke(); x.restore();
+          x.save(); x.translate(px, py);
+          if (f.tipo === 'lanza') {
+            // el machete vuela girando
+            x.rotate(sim.t * 25 + e * 12);
+            x.translate(-0.33, 0);
+            dibujarArma(x, 'machete', 0.36, { sangre: true });
+          } else {
+            x.rotate(Math.atan2(f.y2 - f.y, f.x2 - f.x));
+            x.strokeStyle = '#b08a52'; x.lineWidth = 0.05;
+            x.beginPath(); x.moveTo(-0.4, 0); x.lineTo(0.3, 0); x.stroke();
+            x.fillStyle = '#c3c8d0'; x.beginPath(); x.moveTo(0.42, 0); x.lineTo(0.28, -0.07); x.lineTo(0.28, 0.07); x.closePath(); x.fill();
+            x.fillStyle = '#b5302b'; x.beginPath(); x.moveTo(-0.4, 0); x.lineTo(-0.24, 0); x.lineTo(-0.36, -0.09); x.closePath(); x.fill();
+            x.beginPath(); x.moveTo(-0.4, 0); x.lineTo(-0.24, 0); x.lineTo(-0.36, 0.09); x.closePath(); x.fill();
+          }
+          x.restore();
           break;
         }
         case 'vidrio':
@@ -694,5 +1041,5 @@
     return mejor;
   };
 
-  G.SIM_RENDER = { Render, retrato, miniaturaMapa, dibujarAsesino };
+  G.SIM_RENDER = { Render, retrato, miniaturaMapa, dibujarAsesino, dibujarArma, armaDeAsesino, iconoArma, ARMA_TEXTO };
 })(typeof window !== 'undefined' ? window : globalThis);

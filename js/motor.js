@@ -5,7 +5,7 @@
   const D = G.SIM_DATOS, MP = G.SIM_MAPAS, TX = G.SIM_TEXTOS;
   const T = TX.T, FR = TX.FRASES;
   const DT = 0.1;
-  const T_FIN = 600; // duración de la noche en segundos de simulación
+  const T_FIN = 900; // límite de la noche (segundos de simulación): si amanece y el asesino sigue vivo, perdieron
   const INF = 65535;
 
   const COSTO_S = { '.': 10, ',': 10, ':': 10, '=': 10, 'D': 11, 'W': 45, 'h': 12, 'm': 15, 'L': 10, 'B': 10, 'E': 10 };
@@ -207,6 +207,7 @@
       }
     } else this.auto = null;
     this.sob.forEach(s => {
+      this.items.forEach(it => { if (M.sala[it.tile] >= 0 && /cocina/.test(M.salas[M.sala[it.tile]].nombre)) s.itemsConocidos.add(it.tile); });
       if (s.rasgos.has('conoce')) {
         this.items.forEach(it => s.itemsConocidos.add(it.tile));
         if (this.llavesTile >= 0) s.sabeLlaves = true;
@@ -393,7 +394,7 @@
       cdDisparo: 0, cdGolpe: 0, cdHuida: 0, huidaTile: -1, quitando: 0,
       enAuto: false, vivo: true, escapado: false, destino: '', muerte: null,
       traidor: false, esAsesino: false, sueter: false, sueterUsos: 0, cdSueter: 0, ultimaAmenaza: -99,
-      habla: '', hablaHasta: 0, amen: null, puesto: -1,
+      habla: '', hablaHasta: 0, amen: null, puesto: -1, heridas: [], vioMorir: [], miedoMax: 0, ultimoGolpe: -9, ultimoDisparo: -9,
       est: { danio: 0, disparos: 0, aciertos: 0, salvo: 0 }
     };
     s.px = s.x; s.py = s.y;
@@ -418,14 +419,11 @@
       agarre: null, arrastrando: null, tareas: [], tareaSab: null, emboscada: -1,
       cd: { tele: this.r(15, 30), lanza: 10, arco: 0, llamada: this.r(10, 25), tocar: this.r(5, 15), tormento: this.r(20, 40), frase: this.r(15, 30), ruido: 0, emboscada: 0 },
       kills: 0, visto: false, agresivo: false, retirada: 0, retiradaHecha: false, emboscadaHasta: 0,
-      cdPensar: this.rng() * 0.3, habla: '', hablaHasta: 0, traidorDe: null, tTele: -99, atropellado: 0, cebo: null
+      cdPensar: this.rng() * 0.3, habla: '', hablaHasta: 0, traidorDe: null, tTele: -99, atropellado: 0, cebo: null, ultimoAtaque: -9, danoCaido: 0
     };
     k.px = k.x; k.py = k.y;
     const hab = def.habilidades;
     if (hab.indexOf('cortaLuz') >= 0 && M.fusibles >= 0 && !this.sabLuz && this.rng() < 0.75) { this.sabLuz = true; k.tareas.push({ tipo: 'luz', tile: M.fusibles }); }
-    if (hab.indexOf('sabotajeAuto') >= 0 && M.auto && !this.sabAuto && this.rng() < 0.8) {
-      this.sabAuto = true; k.tareas.push({ tipo: 'auto', tile: M.auto.acceso[Math.floor(this.rng() * M.auto.acceso.length)] });
-    }
     if (hab.indexOf('trampas') >= 0) this.tilesTrampa(2).forEach(t => k.tareas.push({ tipo: 'trampa', tile: t }));
     for (let i = k.tareas.length - 1; i > 0; i--) { const r = Math.floor(this.rng() * (i + 1)); const tmp = k.tareas[i]; k.tareas[i] = k.tareas[r]; k.tareas[r] = tmp; }
     return k;
@@ -704,6 +702,7 @@
       }
       s.miedo = clamp(s.miedo - (1.1 + (cerca ? 1.4 : 0) + (lid ? 1.2 : 0) + s.st.val * 0.1) * DT, 0, 100);
     }
+    if (s.miedo > s.miedoMax) s.miedoMax = s.miedo;
     if (s.traidor && !s.esAsesino) this.comprobarTraidor(s);
     if (!this.activoSob(s)) return;
     s.cdPensar -= DT;
@@ -832,7 +831,13 @@
     let u = 48 + s.st.val * 4.5;
     if (s.rasgos.has('lider')) u += 6;
     if (s.rasgos.has('miedoso')) u -= 15;
-    for (const o of this.sob) if (o !== s && this.activoSob(o) && o.rasgos.has('lider') && this.dist(o, s) < 4) { u += 6; break; }
+    let cerca = 0;
+    for (const o of this.sob) {
+      if (o === s || !this.activoSob(o) || o.oculto || this.dist(o, s) >= 4) continue;
+      cerca++;
+      if (o.rasgos.has('lider')) u += 6;
+    }
+    u += Math.min(3, cerca) * 3; // juntos se aguanta mejor el miedo
     return u;
   };
 
@@ -881,6 +886,8 @@
       if (!this.buscarEscondite(s, true)) s.intent = { modo: 'quieto' };
       return;
     }
+    // el asesino está en el suelo: es el momento de acabar con él
+    if (amen && amen.derribado && amen.visible && amen.d < 12 && amen.k.def.mortal === 'no' && this.decidirDerribado(s, amen.k)) return;
     if (amenActiva && this.puedeDisparar(s, amen)) { s.intent = { modo: 'disparar', k: amen.k }; return; }
     const ap = this.aliadoEnPeligro(s);
     if (ap && this.ayudaria(s, ap)) {
@@ -892,26 +899,44 @@
     } else if (ap && s.rasgos.has('egoista') && this.puede('abandona' + s.id, 40)) {
       this.narrar('grupo', this.txt('abandona', null, { n: s.nombre, o: ap.a.nombre }), s, false);
     }
-    if (amen && amen.derribado && amen.visible && amen.d < 10 && amen.k.def.mortal === 'no') this.decidirDerribado(s, amen.k);
-    if (amenActiva && amen.visible && this.plan && this.plan.tipo === 'enfrentar' && this.meleeCapaz(s) && amen.d < 9) { this.intentAtacar(s, amen.k); return; }
+    // la meta es eliminarlo: si el plan lo permite y puede pelear, se le va encima
+    if (amenActiva && amen.visible && amen.d < 10 && this.vaAlAtaque(s, amen)) { this.intentAtacar(s, amen.k); return; }
     if (amenActiva && this.peligroso(s, amen)) { this.intentHuir(s, amen); return; }
     s.huidaTile = -1;
     if (this.pensarApoyo(s)) return;
     this.pensarPlan(s);
   };
 
+  // ¿Se lanza a pelear? Depende del plan, de su arma, de su valor y de cuántos lo acompañan
+  S.vaAlAtaque = function (s, amen) {
+    const pl = this.plan;
+    if (s.panico || !pl || !this.puedeLuchar(s)) return false;
+    if (pl.tipo === 'enfrentar') return true;
+    if (pl.tipo === 'emboscada') return amen.d < 4.5 || (this.enRefugio(s) && this.M.sala[this.tileDe(amen.k)] === pl.refugio);
+    return amen.d < 3 && this.aliadosCerca(s, 5) >= 2;
+  };
+  S.puedeLuchar = function (s) {
+    const arma = D.ARMAS[s.arma];
+    if (arma.tipo === 'fuego') return s.municion > 0 || s.st.val >= 6;
+    return VALOR_ARMA[s.arma] >= 3 || s.rasgos.has('peleador') || s.st.fue >= 7 || (s.st.val >= 7 && this.aliadosCerca(s, 4) >= 2);
+  };
+  S.aliadosCerca = function (s, r) {
+    let n = 0;
+    for (const o of this.sob) if (o !== s && this.activoSob(o) && !o.traidor && !o.oculto && this.dist(o, s) < r) n++;
+    return n;
+  };
   S.debePelear = function (s, k) {
     if (k.def.pequeno) return !s.panico || this.rng() < 0.5;
     const arma = D.ARMAS[s.arma];
     if (arma.tipo === 'fuego' && s.municion > 0 && !s.panico) return true;
     if (s.panico) return this.rng() < 0.12;
     let coraje = s.st.val + s.st.fue * 0.5 + (s.rasgos.has('peleador') ? 3 : 0) + (VALOR_ARMA[s.arma] >= 5 ? 2 : 0) + (s.rasgos.has('heroe') ? 2 : 0);
-    if (this.con.inmortal[k.clase]) coraje -= 4;
+    coraje += this.aliadosCerca(s, 4) * 1.5; // en grupo se atreven más
+    if (this.con.inmortal[k.clase]) coraje -= 2;
     if (k.agarre && k.agarre.s !== s) coraje += 3;
     if (this.acorralado(s, k)) coraje += 6;
     return coraje >= 12.5;
   };
-
   S.acorralado = function (s, k) {
     const cur = this.tileDe(s), kt = this.tileDe(k);
     const M = this.M;
@@ -931,10 +956,24 @@
     if (arma.tipo !== 'fuego' || s.municion <= 0 || !amen.visible) return false;
     if (amen.d > arma.alcance) return false;
     if (s.panico && this.rng() < 0.5) return false;
-    if (this.con.inmortal[amen.k.clase] && amen.d > 5 && !(this.plan && this.plan.tipo === 'atrincherarse')) return false;
-    return this.los(s.x, s.y, amen.k.x, amen.k.y);
+    if (!this.los(s.x, s.y, amen.k.x, amen.k.y)) return false;
+    // con un amigo pegado al asesino, solo dispara quien tiene buena puntería
+    if (s.st.pun < 8 && this.aliadoEnLinea(s, amen.k)) return false;
+    return true;
   };
-
+  S.aliadoEnLinea = function (s, k) {
+    const d = this.dist(s, k);
+    for (const o of this.sob) {
+      if (o === s || !this.activoSob(o) || o.oculto) continue;
+      if (this.dist(o, k) < 1.3) return true;
+      const dd = this.dist(s, o);
+      if (dd > d) continue;
+      const adelante = (o.x - s.x) * (k.x - s.x) + (o.y - s.y) * (k.y - s.y) > 0;
+      const cruz = Math.abs((k.x - s.x) * (s.y - o.y) - (s.x - o.x) * (k.y - s.y)) / Math.max(0.01, d);
+      if (adelante && cruz < 0.7) return true;
+    }
+    return false;
+  };
   S.meleeCapaz = function (s) {
     return (VALOR_ARMA[s.arma] >= 3 || s.rasgos.has('peleador') || s.st.fue >= 8) && s.st.val >= 5 && !s.panico && D.ARMAS[s.arma].tipo !== 'fuego';
   };
@@ -961,42 +1000,43 @@
     if (s.panico || s.rasgos.has('egoista')) return false;
     if (D.ARMAS[s.arma].tipo === 'fuego' && s.municion > 0) return false;
     if (s.rasgos.has('heroe')) return true;
-    if (ap.a.agarradoPor && s.st.val >= 6) return true;
+    if (ap.a.agarradoPor && s.st.val >= 5) return true;
     if (s.rasgos.has('peleador') && s.st.val >= 5) return true;
-    return s.st.val >= 7 && (s.st.fue >= 6 || VALOR_ARMA[s.arma] >= 3) && !this.con.inmortal[ap.k.clase];
+    return s.st.val >= 6 && this.puedeLuchar(s);
   };
-
   S.peligroso = function (s, amen) {
     const k = amen.k;
-    let radio = k.objetivo === s ? 12 : 7.5;
+    let radio = k.objetivo === s ? 11 : 7;
     if (!k.def.corre) radio -= 1.5;
-    if (this.plan && this.plan.tipo === 'enfrentar' && D.ARMAS[s.arma].tipo === 'fuego') radio = 3;
-    if (this.plan && this.plan.tipo === 'atrincherarse' && this.enRefugio(s) && !this.refugioRoto()) radio = 2.5;
+    const pl = this.plan;
+    if (pl && (pl.tipo === 'enfrentar' || pl.tipo === 'emboscada')) radio = this.puedeLuchar(s) ? 2 : 4.5;
+    if (pl && pl.tipo === 'emboscada' && this.enRefugio(s) && !this.refugioRoto()) radio = 2;
     return amen.dp < radio;
   };
-
+  // Devuelve true si la persona se ocupa del asesino caído (rematarlo, golpearlo o dispararle)
   S.decidirDerribado = function (s, k) {
-    const sabe = s.rasgos.has('estratega') || s.st.int >= 8 || this.con.inmortal[k.clase];
-    const melee = D.ARMAS[s.arma].tipo === 'melee' && s.arma !== 'ninguna';
-    if (sabe && melee && s.st.val >= 6 && !s.panico) {
-      if (!s.tarea || s.tarea.tipo !== 'rematar') {
-        s.tarea = { tipo: 'rematar', k, tile: this.tileDe(k), dur: Math.max(3, 6 - s.st.fue * 0.3), prog: 0 };
-        this.decir(s, 'rematar');
-      }
-      return;
-    }
-    if (s.st.int >= 6 || sabe) {
-      if (this.puede('noComprobar', 30)) this.narrar('grupo', this.txt('noComprobar', null, { n: s.nombre, a: k.nombre }), s, false);
-      return;
-    }
-    if (s.st.val >= 5 && !s.panico && !s.comprobado) {
+    if (s.panico) return false;
+    const sabe = s.rasgos.has('estratega') || s.st.int >= 7 || this.con.inmortal[k.clase];
+    if (!sabe && s.st.int < 5 && s.st.val >= 5 && !s.comprobado) {
       s.comprobado = true;
       s.tarea = { tipo: 'comprobar', k, tile: this.tileDe(k), dur: 2.5, prog: 0 };
       this.decir(s, 'comprobar');
       if (this.puede('comprobar', 30)) this.narrar('grupo', this.txt('comprobar', null, { n: s.nombre, a: k.nombre }), s, false);
+      return this.hacerTarea(s);
     }
+    if (!sabe && s.st.val < 6) return false;
+    const arma = D.ARMAS[s.arma];
+    if (arma.tipo === 'melee' && s.arma !== 'ninguna') {
+      if (!s.tarea || s.tarea.tipo !== 'rematar') {
+        s.tarea = { tipo: 'rematar', k, tile: this.tileDe(k), dur: Math.max(3, 6 - s.st.fue * 0.3), prog: 0 };
+        this.decir(s, 'rematar');
+      }
+      return this.hacerTarea(s);
+    }
+    if (arma.tipo === 'fuego' && s.municion > 0) { s.intent = { modo: 'disparar', k }; return true; }
+    s.intent = { modo: 'atacar', k, ritmo: 2 };
+    return true;
   };
-
   S.usarSueter = function (s, k) {
     s.sueterUsos++; s.cdSueter = 20;
     if (this.rng() < (s.sueterUsos === 1 ? 0.65 : 0.3)) {
@@ -1022,6 +1062,7 @@
     if (this.rng() < 0.08) this.decir(s, s.panico ? 'panico' : 'huir');
     if (s.panico && this.rng() < 0.025 * (1.3 - s.st.vel / 10)) {
       s.aturdido = 1.4;
+      if (this.rng() < 0.5) this.registrarHerida(s, 8, null, 'caida');
       if (this.puede('tropiezo', 15)) this.narrar('grupo', this.txt('tropiezo', null, { n: s.nombre }), s, false);
     }
     if (amen && !amen.visible && amen.d > 5 && (s.st.sig >= 7 || s.panico || (this.plan && this.plan.tipo === 'esconderse'))) {
@@ -1043,10 +1084,6 @@
     const add = (tile, bonus) => { if (tile >= 0 && tile < M.size && M.ci[tile] >= 0) cands.push([tile, bonus]); };
     const pl = this.plan;
     if (pl && pl.meta >= 0 && !s.panico) add(pl.meta, 6);
-    if (this.auto && this.auto.fase === 'aparcado' && !this.con.autoDestruido && (s.llaves || this.sob.some(o => o.llaves && this.activoSob(o))))
-      M.auto.acceso.slice(0, 4).forEach(t => add(t, 7));
-    M.salidas.forEach(t => add(t, pl && pl.tipo === 'huir' ? 10 : 4));
-    if (M.canoa >= 0) add(M.canoa, 5);
     const lid = this.liderPlan();
     if (lid && lid !== s && !s.panico) add(this.tileDe(lid), 4);
     if (pl && pl.refugio !== undefined && !this.refugioRoto()) add(pl.puntoRefugio, 5);
@@ -1280,6 +1317,7 @@
       case 'curar': {
         const o = ta.o;
         o.sangrado = false; o.vendado = true; o.curadoHasta = this.t + 30;
+        o.heridas.forEach(h => { if (!h.tratada) h.tratada = s === o ? 'se vendó solo' : 'vendada por ' + s.nombre; });
         o.hp = Math.min(o.hpMax, o.hp + (s.rasgos.has('medico') ? 25 : 12) + (s.objeto === 'botiquin' ? 8 : 0));
         if (o !== s) { s.est.salvo++; this.decir(s, 'curar'); this.narrar('grupo', this.txt('curar', null, { n: s.nombre, o: o.nombre }), s, false); }
         break;
@@ -1318,7 +1356,8 @@
         break;
       case 'rematar': {
         const k = ta.k;
-        k.neutralizado = true; k.derribado = 0; k.estadoFinal = 'Rematado por ' + s.nombre;
+        k.neutralizado = true; k.derribado = 0;
+        k.estadoFinal = 'Eliminado: ' + s.nombre + ' lo remató en el suelo';
         const clave = k.clase === 'jason' ? 'rematarJason' : (k.clase === 'michael' ? 'rematarMichael' : 'rematar');
         this.narrar('combate', this.txt(clave, null, { n: s.nombre, a: k.nombre, arma: 'el ' + D.ARMAS[s.arma].nombre.toLowerCase() }), s, true);
         this.manchar(k.x, k.y, 8);
@@ -1347,22 +1386,7 @@
   };
   S.puntajeLider = function (s) { return (s.rasgos.has('lider') ? 5 : 0) + s.st.int * 0.6 + s.st.val * 0.5 + (s.rasgos.has('estratega') ? 2 : 0); };
 
-  S.medioLlamada = function (desde) {
-    if (this.ayuda || this.ayudaPedida) return null;
-    const def = this.def;
-    if (this.op.celulares && def.senal === 'global') return { tipo: 'celular', tile: desde, dist: 0 };
-    const opciones = [];
-    if (this.op.celulares && def.senal === 'zonas' && this.M.senalTiles.length) {
-      let mejor = -1, md = 1e9;
-      for (const t of this.M.senalTiles) { const d = this.dS(desde, t); if (d < md) { md = d; mejor = t; } }
-      if (mejor >= 0) opciones.push({ tipo: 'zona', tile: mejor, dist: md });
-    }
-    if (this.M.telefono >= 0 && !this.con.lineaCortada) opciones.push({ tipo: 'telefono', tile: this.M.telefono, dist: this.dS(desde, this.M.telefono) });
-    if (this.M.radio >= 0 && !this.con.radioRota) opciones.push({ tipo: 'radio', tile: this.M.radio, dist: this.dS(desde, this.M.radio) });
-    opciones.sort((a, b) => a.dist - b.dist);
-    return opciones[0] || null;
-  };
-
+  S.medioLlamada = function () { return null; }; // no hay rescate: hay que eliminar al asesino
   S.elegirRefugio = function (desde, n) {
     const M = this.M;
     let mejor = null, mv = 1e9;
@@ -1382,85 +1406,65 @@
     if (!parts.length) return;
     const lider = parts.slice().sort((a, b) => this.puntajeLider(b) - this.puntajeLider(a))[0];
     const M = this.M, desde = this.tileDe(lider), int = lider.st.int + (lider.rasgos.has('estratega') ? 2 : 0);
-    const nArmas = parts.filter(s => D.ARMAS[s.arma].tipo === 'fuego' && s.municion > 0).length;
-    const nPelea = parts.filter(s => s.rasgos.has('peleador') || s.st.fue >= 8 || VALOR_ARMA[s.arma] >= 5).length;
+    const conBala = s => D.ARMAS[s.arma].tipo === 'fuego' && s.municion > 0;
+    const nArmas = parts.filter(conBala).length;
+    const nFilo = parts.filter(s => D.ARMAS[s.arma].tipo === 'melee' && VALOR_ARMA[s.arma] >= 3).length;
+    const nPelea = parts.filter(s => s.rasgos.has('peleador') || s.st.fue >= 8).length;
+    const nSin = parts.filter(s => !conBala(s) && VALOR_ARMA[s.arma] < 3).length;
     const prom = k => parts.reduce((a, s) => a + s.st[k], 0) / parts.length;
     const conocidos = this.ase.filter(k => this.con.asesinos[k.id] && this.activoK(k));
     const nAse = Math.max(1, conocidos.length);
     const inmortal = conocidos.some(k => this.con.inmortal[k.clase] || this.con.resistente[k.id]);
     const grande = conocidos.some(k => ['jason', 'michael', 'leatherface'].indexOf(k.clase) >= 0);
-    const rapido = conocidos.some(k => k.def.corre && k.def.velCorrer > 4.7);
-    const canibalBosque = this.def.bosque && conocidos.some(k => k.clase === 'canibal');
-    const holder = this.sob.find(s => s.llaves && this.activoSob(s));
+    const utiles = this.itemsParaGrupo(parts);
     const sc = {};
     const ruido = () => (this.rng() - 0.5) * Math.max(3, (13 - int) * 3);
     const fallo = tipo => this.planesFallidos[tipo] && this.t < this.planesFallidos[tipo];
-
-    if (this.auto && this.auto.fase === 'aparcado' && !this.con.autoDestruido) {
-      const dAuto = this.dS(desde, M.auto.acceso[0]);
-      let v = 52 - dAuto * 0.55;
-      if (holder) v += 18;
-      else if (this.con.llaves >= 0) v += 6;
-      else if (this.llavesTile >= 0) v += parts.some(s => s.sabeLlaves) ? 10 : -6;
-      else v -= 30;
-      if (this.con.autoDanado) v -= parts.some(s => s.rasgos.has('mecanico')) ? 0 : 10;
-      sc.auto = v;
-    }
-    const medio = this.medioLlamada(desde);
-    if (medio) sc.llamar = medio.tipo === 'celular' ? 80 : 46 - medio.dist * 0.55;
+    if (utiles.length && nSin > 0) sc.armarse = 36 + nSin * 7 + Math.min(utiles.length, nSin) * 4 - nArmas * 6;
+    sc.enfrentar = 22 + nArmas * 13 + nFilo * 6 + nPelea * 6 + prom('val') * 2 - (nAse - 1) * 10 - (grande ? 6 : 0) - nSin * 3;
     const ri = this.elegirRefugio(desde, parts.length);
-    if (ri !== null) sc.atrincherarse = 30 + nArmas * 7 + nPelea * 3 - (this.con.rompePuertas ? 25 : 0) - nAse * 4 + (this.ayuda ? 22 : 0) - (grande ? 8 : 0);
-    sc.enfrentar = nArmas * 16 + nPelea * 9 + prom('val') * 2.5 - 54 - (nAse - 1) * 14 - (inmortal ? 70 : 0) - (grande ? 14 : 0);
-    if (M.salidas.length) {
-      let ds = 999; M.salidas.forEach(t => { ds = Math.min(ds, this.dS(desde, t)); });
-      sc.huir = 24 - ds * 0.5 + prom('vel') * 1.6 - (rapido ? 12 : 0) - (canibalBosque ? 15 : 0) + (inmortal ? 6 : 0);
-    }
-    if (M.canoa >= 0) sc.canoa = 30 - this.dS(desde, M.canoa) * 0.5 + (inmortal ? 6 : 0);
-    sc.esconderse = 10 + prom('sig') * 1.8 + (this.ayuda ? 20 : 0);
-
+    if (ri !== null) sc.emboscada = 28 + nSin * 3 + (grande ? 8 : 0) + (inmortal ? 6 : 0) + (nAse > 1 ? 6 : 0);
     let tipo = null, mv = -1e9;
     for (const k in sc) {
       if (fallo(k)) continue;
       const v = sc[k] + ruido();
       if (v > mv) { mv = v; tipo = k; }
     }
-    if (!tipo) tipo = 'esconderse';
+    if (!tipo) tipo = 'enfrentar';
     const pl = { tipo, lider: lider.id, inicio: this.t, meta: -1 };
-    let clave = tipo, l = '';
-    if (tipo === 'auto') { pl.meta = M.auto.acceso[0]; if (!holder) clave = 'autoLlaves'; }
-    if (tipo === 'llamar') { pl.medio = medio; pl.meta = medio.tile; }
-    if (tipo === 'atrincherarse') {
+    let l = '';
+    if (tipo === 'emboscada') {
       pl.refugio = ri; const r = M.salas[ri];
       pl.puntoRefugio = this.puntoLejosDeAberturas(r); pl.meta = pl.puntoRefugio; l = r.nombre;
     }
-    if (tipo === 'huir') {
-      let mejor = -1, mvv = 1e9;
-      M.salidas.forEach(t => { const d = this.dS(desde, t); if (d < mvv) { mvv = d; mejor = t; } });
-      pl.meta = mejor;
-    }
-    if (tipo === 'canoa') pl.meta = M.canoa;
     this.plan = pl;
     if (!this.registrar) return;
     let razon = '';
-    if (inmortal && (tipo === 'auto' || tipo === 'huir' || tipo === 'canoa' || tipo === 'llamar')) razon = ' ' + T.planRazon.inmortal;
-    else if (this.ayuda && (tipo === 'atrincherarse' || tipo === 'esconderse')) razon = ' ' + T.planRazon.ayuda;
-    else if (tipo === 'enfrentar') razon = ' ' + T.planRazon.armas;
-    else if (tipo === 'atrincherarse' && nArmas === 0) razon = ' ' + T.planRazon.sinArmas;
-    this.narrar('plan', this.txt('plan', clave, { n: lider.nombre, l }) + razon, lider, true);
-    const grito = { auto: ['¡Al auto!'], autoLlaves: ['¡Busquen las llaves!'], llamar: ['¡Hay que pedir ayuda!'], atrincherarse: ['¡Todos adentro!'], enfrentar: ['¡Vamos a por él!'], huir: ['¡A la carretera!'], esconderse: ['¡Escóndanse!'], canoa: ['¡Al muelle!'] }[clave];
+    if (inmortal) razon = ' ' + T.planRazon.inmortal;
+    else if (tipo === 'enfrentar' && nArmas) razon = ' ' + T.planRazon.armas;
+    else if (tipo === 'armarse') razon = ' ' + T.planRazon.sinArmas;
+    this.narrar('plan', this.txt('plan', tipo, { n: lider.nombre, l }) + razon, lider, true);
+    const grito = { armarse: ['¡Agarren algo para pelear!'], enfrentar: ['¡Vamos a por él!'], emboscada: ['¡Todos adentro, lo esperamos!'] }[tipo];
     this.decir(lider, grito || 'alerta');
   };
 
-  S.fallarPlan = function () {
+  // Objetos útiles que alguien del grupo conoce (se lo cuentan entre ellos)
+  S.itemsParaGrupo = function (parts) {
+    return this.items.filter(it => {
+      if (it.tipo === 'botiquin' || it.tipo === 'sueter') return false;
+      if (!parts.some(s => s.itemsConocidos.has(it.tile))) return false;
+      return parts.some(s => this.utilParaMi(s, it.tipo));
+    });
+  };
+  S.fallarPlan = function (seg) {
     if (!this.plan) return;
-    this.planesFallidos[this.plan.tipo] = this.t + 60;
+    this.planesFallidos[this.plan.tipo] = this.t + (seg || 60);
     this.plan = null;
     this.sob.forEach(s => {
       s.puesto = -1;
       if (s.tarea && ['barricada', 'buscarLlaves', 'reparar', 'llamar', 'recogerLlaves'].indexOf(s.tarea.tipo) >= 0) s.tarea = null;
     });
   };
-
   S.puntoLejosDeAberturas = function (r) {
     let mejor = r.tiles[0], mv = -1;
     for (const t of r.tiles) {
@@ -1487,22 +1491,38 @@
     if (!this.plan) this.elegirPlan();
     const pl = this.plan;
     if (!pl) { s.intent = { modo: 'quieto' }; return; }
-    if (this.t - pl.inicio > 75 && pl.tipo !== 'esconderse' && pl.tipo !== 'atrincherarse') { this.fallarPlan(); this.elegirPlan(); return; }
     const lider = this.liderPlan();
     if (!lider) { s.intent = { modo: 'quieto' }; return; }
     let amenazaGrupo = false;
     for (const p of this.sob) if (this.activoSob(p) && p.amen && p.amen.visible && p.amen.d < 12) { amenazaGrupo = true; break; }
     const ritmo = amenazaGrupo ? 2 : 1;
     switch (pl.tipo) {
-      case 'auto': return this.planAuto(s, pl, lider, ritmo);
-      case 'llamar': return this.planLlamar(s, pl, lider, ritmo);
-      case 'atrincherarse': return this.planRefugio(s, pl, lider, ritmo);
-      case 'enfrentar': return this.planEnfrentar(s, pl, lider, ritmo);
-      case 'huir': case 'canoa': return this.planHuir(s, pl, lider, ritmo);
-      default: return this.planEsconderse(s);
+      case 'armarse': return this.planArmarse(s, pl, lider, ritmo);
+      case 'emboscada': return this.planRefugio(s, pl, lider, ritmo);
+      default: return this.planEnfrentar(s, pl, lider, ritmo);
     }
   };
 
+  S.planArmarse = function (s, pl, lider, ritmo) {
+    const parts = this.participantes();
+    const utiles = this.itemsParaGrupo(parts);
+    if (!utiles.length || this.t - pl.inicio > 70) { this.fallarPlan(40); this.elegirPlan(); return; }
+    if (s.tarea && s.tarea.tipo === 'tomar') { this.hacerTarea(s); return; }
+    let mejor = null, mv = 1e9;
+    for (const it of utiles) {
+      if (!this.utilParaMi(s, it.tipo)) continue;
+      if (this.sob.some(o => o !== s && o.tarea && o.tarea.tipo === 'tomar' && o.tarea.it === it)) continue;
+      const d = this.dS(this.tileDe(s), it.tile);
+      if (d < 35 && d < mv) { mv = d; mejor = it; }
+    }
+    if (mejor) {
+      s.itemsConocidos.add(mejor.tile);
+      s.tarea = { tipo: 'tomar', it: mejor, tile: mejor.tile, dur: 0.6, prog: 0 };
+      this.hacerTarea(s); return;
+    }
+    if (s === lider) { s.intent = { modo: 'ir', tile: utiles[0].tile, ritmo: Math.max(1, ritmo) }; return; }
+    this.seguir(s, lider, ritmo);
+  };
   S.seguir = function (s, lider, ritmo) {
     if (s === lider) return;
     const d = this.dist(s, lider);
@@ -1778,6 +1798,13 @@
       ts.sort((a, b) => this.distAberturas(r, b) - this.distAberturas(r, a));
       s.puesto = ts.length ? ts[0] : pl.puntoRefugio;
     }
+    if (!libres.length && !pl.listo) pl.listo = this.t;
+    let reciente = -99;
+    for (const k of this.ase) { const c = this.con.asesinos[k.id]; if (c && this.activoK(k)) reciente = Math.max(reciente, c.t); }
+    if (pl.listo && this.t - pl.listo > 45 && this.t - reciente > 25) {
+      this.narrar('plan', this.txt('salenACazar', null, { n: (this.liderPlan() || s).nombre }), s, true);
+      this.fallarPlan(50); this.elegirPlan(); return;
+    }
     s.intent = { modo: 'ir', tile: s.puesto, ritmo: 0 };
   };
   S.casillaInterior = function (ab, ri) {
@@ -1790,22 +1817,28 @@
   };
 
   S.planEnfrentar = function (s, pl, lider, ritmo) {
-    if (this.ase.some(k => this.activoK(k) && (this.con.inmortal[k.clase] || this.con.resistente[k.id]))) { this.fallarPlan(); return; }
     if (s !== lider) { this.seguir(s, lider, ritmo); return; }
+    if (this.liderEspera(lider, ritmo)) { s.intent = { modo: 'quieto' }; return; }
+    // ir a la última posición conocida del asesino
     let mejor = null;
     for (const k of this.ase) {
       const c = this.con.asesinos[k.id];
       if (!c || !this.activoK(k)) continue;
       if (!mejor || c.t > mejor.t) mejor = c;
     }
-    if (!mejor || this.t - mejor.t > 30) {
-      if (!pl.patrulla || this.tileDe(s) === pl.patrulla) pl.patrulla = this.elegir(this.M.act.pasear.length ? this.M.act.pasear : this.M.spawnS);
-      s.intent = { modo: 'ir', tile: pl.patrulla, ritmo: 0 };
+    if (mejor && this.t - mejor.t < 40 && this.dist(s, mejor) > 1.5) {
+      s.intent = { modo: 'ir', tile: this.idx(mejor.x, mejor.y), ritmo: Math.max(1, ritmo) };
       return;
     }
-    s.intent = { modo: 'ir', tile: this.idx(mejor.x, mejor.y), ritmo: 1 };
+    // sin pistas: revisar la casa y los alrededores, cuarto por cuarto
+    if (!pl.patrulla || this.tileDe(s) === pl.patrulla || this.t - (pl.tPatrulla || 0) > 22) {
+      const A = this.M.act, lista = A.pasear.concat(A.afuera.length ? A.afuera : []);
+      let t = this.elegir(lista);
+      for (let i = 0; i < 6 && this.dist(s, { x: this.cx(t), y: this.cy(t) }) < 8; i++) t = this.elegir(lista);
+      pl.patrulla = t; pl.tPatrulla = this.t;
+    }
+    s.intent = { modo: 'ir', tile: pl.patrulla, ritmo: 1 };
   };
-
   S.planHuir = function (s, pl, lider, ritmo) {
     const meta = pl.meta;
     if (s !== lider && this.dist(s, lider) > 6 && this.dS(this.tileDe(s), meta) > this.dS(this.tileDe(lider), meta)) { this.seguir(s, lider, ritmo); return; }
@@ -1872,15 +1905,7 @@
     }
   };
 
-  S.llegarA = function (s, tile) {
-    const M = this.M;
-    if (M.g[tile] === 'E' && s.alerta >= 2) { this.escaparPie(s, 'pie'); return; }
-    if (tile === M.canoa && s.alerta >= 2) { this.escaparPie(s, 'canoa'); return; }
-    if (this.plan && this.plan.tipo === 'auto' && M.auto && M.auto.acceso.indexOf(tile) >= 0 && this.auto.fase === 'aparcado' && !this.auto.danio) {
-      if (this.sob.some(o => o.llaves && (this.activoSob(o) || o.enAuto))) this.subirAuto(s);
-    }
-  };
-
+  S.llegarA = function () { /* ya no hay escapes: llegar a la carretera, al vehículo o a la canoa no salva a nadie */ };
   S.escaparPie = function (s, modo) {
     let perseg = null;
     for (const k of this.ase) {
@@ -1919,7 +1944,7 @@
   S.disparar = function (s, k) {
     const arma = D.ARMAS[s.arma];
     if (s.municion <= 0) return;
-    s.municion--; s.est.disparos++;
+    s.municion--; s.est.disparos++; s.ultimoDisparo = this.t;
     s.cdDisparo = arma.cadencia * (1 + s.miedo / 220);
     const d = this.dist(s, k);
     const oscuro = !this.iluminado(k.x, k.y) && s.objeto !== 'linterna';
@@ -1944,10 +1969,10 @@
         if (dd > d) continue;
         const cruz = Math.abs((k.x - s.x) * (s.y - o.y) - (s.x - o.x) * (k.y - s.y)) / Math.max(0.01, d);
         const adelante = (o.x - s.x) * (k.x - s.x) + (o.y - s.y) * (k.y - s.y) > 0;
-        if (adelante && cruz < 0.5 && this.rng() < 0.2) {
+        if (adelante && cruz < 0.4 && this.rng() < 0.07) {
           this.narrar('combate', this.txt('fuegoAmigo', null, { n: s.nombre, o: o.nombre }), o, true);
           o.fuegoAmigoDe = s.nombre;
-          this.danioSob(o, this.r(arma.danio[0], arma.danio[1]) * 0.8, null, 'fuegoAmigo');
+          this.danioSob(o, this.r(arma.danio[0], arma.danio[1]) * 0.6, null, 'fuegoAmigo');
           return;
         }
       }
@@ -1961,6 +1986,7 @@
     const sinBalas = arma.tipo === 'fuego';
     const danioBase = sinBalas ? arma.culata : arma.danio;
     s.cdGolpe = sinBalas ? 1.0 : arma.cadencia;
+    s.ultimoGolpe = this.t; s.cuerpoACuerpo = true;
     const pele = s.rasgos.has('peleador');
     const p = 0.5 + s.st.fue * 0.025 + (pele ? 0.15 : 0) - k.def.esquiva + (k.derribado > 0 || k.agarre ? 0.3 : 0) + (k.aturdido > 0 ? 0.15 : 0);
     this.ruido('pelea', s.x, s.y, 9, { fuente: s });
@@ -2392,7 +2418,7 @@
   S.ataqueDistancia = function (k, s, d) {
     const hab = k.def.habilidades;
     if (hab.indexOf('lanzaArma') >= 0 && k.cd.lanza <= 0 && d > 3 && d < 9 && s.intent.modo === 'ir' && s.intent.ritmo === 2) {
-      k.cd.lanza = 30;
+      k.cd.lanza = 30; k.ultimoAtaque = this.t;
       this.efecto('lanza', k.x, k.y, { x2: s.x, y2: s.y, dur: 0.4 });
       if (this.rng() < 0.55) {
         s.aturdido = 1.2;
@@ -2403,7 +2429,7 @@
       return;
     }
     if (hab.indexOf('arco') >= 0 && k.j === 0 && k.cd.arco <= 0 && d > 3 && d < 13) {
-      k.cd.arco = 3.2;
+      k.cd.arco = 3.2; k.ultimoAtaque = this.t;
       const oscuro = !this.iluminado(s.x, s.y) && !this.tieneLuz(s);
       const p = (0.62 - d * 0.025) * (oscuro ? 0.8 : 1);
       this.efecto('flecha', k.x, k.y, { x2: s.x, y2: s.y, dur: 0.35 });
@@ -2592,6 +2618,7 @@
     if (k.cdAtaque > 0 && !forzado) return;
     const def = k.def;
     k.cdAtaque = def.cadencia * this.r(0.85, 1.15);
+    k.ultimoAtaque = this.t;
     const info = s.conoce[k.id];
     let sorpresa = s.alerta < 2 || s.durmiendo || !info || this.t - info.t > 2.5 || s.oculto || contexto === 'sorpresa';
     // quien lo acaba de ver a un metro no tiene tiempo de reaccionar
@@ -2645,6 +2672,8 @@
         this.soltar(k);
         k.aturdido = 0.8;
         this.narrar('combate', this.txt('zafarse', null, { n: s.nombre, a: k.nombre }), s, true);
+        this.registrarHerida(s, 25, k, 'estrangulamiento');
+        s.cuerpoACuerpo = true; s.fueAgarrado = true;
         s.miedo = clamp(s.miedo + 15, 0, 100);
         return;
       }
@@ -2666,6 +2695,7 @@
     this.efecto('herida', s.x, s.y, { dur: 0.5 });
     s.miedo = clamp(s.miedo + 18, 0, 100);
     if (s.hp <= 0) { this.morir(s, k, ctx); return; }
+    this.registrarHerida(s, dmg, k, ctx);
     if (s.hp < s.hpMax * 0.5 && !s.vendado) s.sangrado = true;
     s.aturdido = Math.max(s.aturdido, 0.25);
     if (k && dmg >= 15 && ctx !== 'flecha' && ctx !== 'lanza' && ctx !== 'trampa' && this.puede('herido' + s.id, 4))
@@ -2673,6 +2703,61 @@
     if (k) this.alertar(s, k, 'herida');
   };
 
+  const GRAVEDAD = { leve: 0, moderada: 1, grave: 2 };
+  const PARTES = ['el brazo izquierdo', 'el brazo derecho', 'la pierna izquierda', 'la pierna derecha', 'el costado', 'el hombro', 'la espalda', 'el abdomen', 'la cara', 'la mano'];
+  // Guarda una herida para el parte médico final
+  S.registrarHerida = function (s, dmg, k, ctx) {
+    const gravedad = dmg < 20 ? 'leve' : (dmg < 45 ? 'moderada' : 'grave');
+    const parte = this.elegirT(PARTES);
+    let texto;
+    if (ctx === 'trampa') texto = 'Pierna atrapada en un cepo';
+    else if (ctx === 'flecha') texto = 'Flecha clavada en ' + parte;
+    else if (ctx === 'lanza') texto = 'Machetazo en la espalda';
+    else if (ctx === 'fuegoAmigo') texto = 'Herida de bala en ' + parte;
+    else if (ctx === 'estrangulamiento') texto = 'Marcas de estrangulamiento en el cuello';
+    else if (ctx === 'caida') texto = 'Golpes y raspones por una caída';
+    else if (k) {
+      switch (k.clase) {
+        case 'jason': texto = this.rngT() < 0.35 ? 'Costillas rotas' : 'Corte de machete en ' + parte; break;
+        case 'michael': texto = 'Puñalada en ' + parte; break;
+        case 'ghostface': texto = 'Puñalada en ' + parte; break;
+        case 'leatherface': texto = 'Desgarro de motosierra en ' + parte; break;
+        case 'canibal': texto = 'Hachazo en ' + parte; break;
+        case 'extranos': texto = 'Corte profundo en ' + parte; break;
+        case 'chucky': texto = this.rngT() < 0.4 ? 'Mordida en la mano' : 'Puñalada en el tobillo'; break;
+        default: texto = 'Herida en ' + parte;
+      }
+    } else texto = 'Herida en ' + parte;
+    const igual = s.heridas.find(h => h.texto === texto && !h.tratada);
+    if (igual) {
+      igual.veces = (igual.veces || 1) + 1;
+      if (GRAVEDAD[gravedad] > GRAVEDAD[igual.gravedad]) igual.gravedad = gravedad;
+      return;
+    }
+    s.heridas.push({ texto, gravedad, hora: this.hora(), por: k ? k.corto : '', tratada: '', veces: 1 });
+  };
+
+  // Parte médico y psicológico de quien sobrevivió
+  S.parteMedico = function (s) {
+    const f = Math.max(0, s.hp) / s.hpMax;
+    const o = s.g === 'f' ? 'a' : 'o';
+    let salud;
+    if (!s.heridas.length && f > 0.95) salud = 'Iles' + o;
+    else if (f > 0.7) salud = 'Heridas leves';
+    else if (f > 0.4) salud = 'Herid' + o;
+    else salud = 'Herid' + o + ' de gravedad';
+    if (s.sangrado && !s.vendado && f < 0.5) salud = 'En estado crítico';
+    const trauma = [];
+    if (s.vioMorir.length) trauma.push('Vio morir a ' + this.listaNombres(s.vioMorir));
+    if (s.fueAgarrado) trauma.push('El asesino l' + o + ' tuvo agarrad' + o + ' y logró zafarse');
+    else if (s.cuerpoACuerpo) trauma.push('Peleó cuerpo a cuerpo con el asesino');
+    const graves = s.heridas.filter(h => h.gravedad === 'grave').length;
+    const golpe = s.miedoMax / 100 + s.vioMorir.length * 0.35 + graves * 0.25 + (s.fueAgarrado ? 0.3 : 0) - (s.st.val - 5) * 0.06;
+    if (golpe >= 1.75) trauma.push('Estrés postraumático: no podrá dormir con la luz apagada');
+    else if (golpe >= 1.3) trauma.push('Crisis de nervios: no para de temblar');
+    else if (golpe >= 0.85) trauma.push('Muy asustad' + o + ', pero enter' + o);
+    return { salud, vida: Math.round(f * 100), heridas: s.heridas.slice(), trauma };
+  };
   S.morir = function (s, k, ctx, sinTexto) {
     if (!s.vivo) return;
     s.vivo = false; s.hp = 0; s.intent = { modo: 'quieto' }; s.tarea = null; s.oculto = false; s.enAuto = false;
@@ -2713,6 +2798,7 @@
       const d = this.dist(o, s);
       if (d < 10 && this.los(o.x, o.y, s.x, s.y) && this.rangoVistaSob(o, s.x, s.y) + 2 > d) {
         o.miedo = clamp(o.miedo + 40, 0, 100);
+        if (o.vioMorir.indexOf(s.nombre) < 0) o.vioMorir.push(s.nombre);
         o.cuerposVistos.add(s.id); c.descubierto = true;
         if (c.llaves) this.con.llaves = tile;
         this.alertar(o, k, 'muerte');
@@ -2743,7 +2829,14 @@
     const def = k.def;
     const arm = tipo === 'bala' ? def.armaduraBala : (tipo === 'auto' ? 0.2 : def.armaduraMelee);
     const real = dmg * (1 - arm);
-    if (k.derribado > 0) { k.derribado += real * 0.03; return; }
+    if (k.derribado > 0) {
+      // rematarlo mientras está en el suelo
+      k.danoCaido += real; k.derribado += real * 0.01;
+      if (atacante && atacante.est) atacante.est.danio += real;
+      this.manchar(k.x, k.y, 1);
+      if (k.danoCaido >= k.hpMax * 0.3) this.eliminarInmortal(k, atacante, 'remate');
+      return;
+    }
     if (k.fingido > 0) { this.matarAsesino(k, atacante, true); return; }
     k.hp -= real;
     if (atacante && atacante.est) atacante.est.danio += real;
@@ -2772,8 +2865,10 @@
     }
     if (k.agarre) this.soltar(k);
     if (def.mortal === 'no') {
-      k.hp = 0; k.derribado = this.r(def.revive[0], def.revive[1]); k.derribos++;
+      k.hp = 0; k.derribos++; k.danoCaido = 0;
       k.objetivo = null; k.intent = { modo: 'quieto' };
+      if (k.derribos >= 3) { this.eliminarInmortal(k, atacante, 'tercera'); return; }
+      k.derribado = this.r(def.revive[0], def.revive[1]);
       this.narrar('combate', this.txt('asesinoDerribado', k.clase, { a: k.nombre, l: this.lugar(k.x, k.y) }), k, true);
       this.efecto('caida', k.x, k.y, { dur: 1 });
       return;
@@ -2791,11 +2886,26 @@
     this.matarAsesino(k, atacante, false);
   };
 
+  // Jason o Michael quedan fuera de combate para el resto de la noche
+  S.eliminarInmortal = function (k, atacante, como) {
+    if (k.neutralizado) return;
+    k.neutralizado = true; k.derribado = 0; k.hp = 0;
+    const n = atacante && atacante.nombre ? atacante.nombre : 'el grupo';
+    if (como === 'tercera') {
+      k.estadoFinal = 'Eliminado: cayó por tercera vez y ya no se levantó';
+      this.narrar('combate', this.txt('asesinoFinal', k.clase, { a: k.nombre, n }), k, true);
+    } else {
+      k.estadoFinal = 'Eliminado: ' + n + ' lo remató en el suelo';
+      this.narrar('combate', this.txt('remataCaido', null, { a: k.nombre, n }), k, true);
+    }
+    this.manchar(k.x, k.y, 8);
+  };
+
   S.matarAsesino = function (k, atacante, susto) {
     k.muerto = true; k.fingido = 0; k.hp = 0;
     if (k.agarre) this.soltar(k);
     const n = atacante && atacante.nombre ? atacante.nombre : 'Alguien';
-    k.estadoFinal = 'Muerto' + (atacante && atacante.nombre ? ' a manos de ' + atacante.nombre : '');
+    k.estadoFinal = 'Eliminado' + (atacante && atacante.nombre ? ' por ' + atacante.nombre : '');
     if (susto) this.narrar('combate', n + ' no se deja engañar: remata a ' + k.nombre + ' antes de que vuelva a levantarse.', k, true);
     let quien = k.traidorDe;
     if (!quien && this.registrar) {
@@ -2864,66 +2974,54 @@
 
   /* ======================= Final ======================= */
   S.comprobarFin = function () {
-    let enJuego = 0, escaparon = 0;
-    for (const s of this.sob) {
-      if (s.esAsesino || s.traidor) continue;
-      if (s.vivo && !s.escapado) enJuego++;
-      if (s.escapado) escaparon++;
-    }
-    const autoEnMarcha = this.auto && (this.auto.fase === 'marcha' || this.auto.fase === 'arrancando');
-    if (enJuego === 0 && !autoEnMarcha) { this.terminar(escaparon ? 'escape' : 'masacre'); return; }
+    let vivos = 0;
+    for (const s of this.sob) if (!s.esAsesino && !s.traidor && s.vivo) vivos++;
+    if (vivos === 0) { this.terminar('masacre'); return; }
     const traidorPend = this.sob.some(s => s.traidor && !s.esAsesino && s.vivo);
-    if (this.ase.length && !traidorPend && !this.ayuda) {
-      const activos = this.ase.some(k => !k.muerto && !k.neutralizado && !k.huido);
-      if (!activos) {
-        if (!this.tVictoria) this.tVictoria = this.t;
-        if (this.t - this.tVictoria > 3) { this.terminar('victoria'); return; }
-      }
+    const activos = this.ase.some(k => !k.muerto && !k.neutralizado && !k.huido);
+    if (this.ase.length && !activos && !traidorPend) {
+      if (!this.tVictoria) this.tVictoria = this.t;
+      if (this.t - this.tVictoria > 3) { this.terminar('victoria'); return; }
     }
-    if (this.ase.length === 0 && !traidorPend && this.t > 20) { this.terminar('victoria'); return; }
-    if (this.ayuda && this.ayuda.fase === 'escena' && this.t > this.ayuda.llega + 7) { this.terminar('rescate'); return; }
-    if (this.t >= this.tFin) this.terminar('amanecer');
+    if (this.t >= this.tFin) this.terminar('sinResolver');
   };
-
   S.terminar = function (tipo) {
     if (this.fin) return;
     const personas = this.sob.filter(s => !s.esAsesino && !s.traidor);
-    if (tipo === 'amanecer') this.narrar('final', this.txt('amanecer', null, {}), null, true);
-    personas.forEach(s => {
-      if (s.vivo && !s.escapado) {
-        if (s.enAuto) s.destino = 'Escapó en ' + this.vehiculo;
-        else if (tipo === 'rescate') s.destino = 'Rescatado por ' + this.def.ayuda.quien;
-        else if (tipo === 'amanecer') s.destino = 'Sobrevivió hasta el amanecer';
-        else s.destino = 'Sobrevivió';
-      }
-    });
     const vivos = personas.filter(s => s.vivo);
-    let final = tipo;
-    if (vivos.length === 0) final = 'masacre';
-    else if (tipo === 'escape' && vivos.every(s => /pie|canoa/.test(s.destino))) final = 'huida';
+    const sueltos = this.ase.filter(k => !k.muerto && !k.neutralizado && !k.huido);
+    const nombres = l => this.listaNombres(l.map(k => k.nombre));
+    if (tipo === 'sinResolver' && vivos.length === 0) tipo = 'masacre';
+    if (tipo === 'victoria') this.narrar('final', this.txt('finalVictoria', null, { a: nombres(this.ase) }), null, true);
+    if (tipo === 'sinResolver') this.narrar('final', this.txt('finalSinResolver', null, { a: nombres(sueltos) }), sueltos[0] || null, true);
+    vivos.forEach(s => { s.destino = 'Sobrevivió'; });
     const n = personas.length;
     let titulo;
-    if (vivos.length === 0) titulo = 'Nadie sobrevivió';
-    else if (vivos.length === n) titulo = n === 1 ? 'Sobrevivió' : 'Todos sobrevivieron';
-    else if (vivos.length === 1) titulo = 'Solo ' + vivos[0].nombre + ' sobrevivió';
-    else titulo = 'Sobrevivieron ' + vivos.length + ' de ' + n;
+    if (tipo === 'masacre') titulo = 'Nadie sobrevivió';
+    else if (tipo === 'victoria') titulo = this.ase.length === 1 ? 'Eliminaron a ' + this.ase[0].nombre : 'Eliminaron a los asesinos';
+    else titulo = 'Amaneció y ' + nombres(sueltos) + (sueltos.length > 1 ? ' siguen vivos' : ' sigue vivo');
+    let subtitulo;
+    if (vivos.length === 0) subtitulo = 'No quedó nadie del grupo.';
+    else if (vivos.length === n) subtitulo = n === 1 ? 'Sobrevivió.' : 'Sobrevivieron todos.';
+    else if (vivos.length === 1) subtitulo = 'Solo ' + vivos[0].nombre + ' sobrevivió.';
+    else subtitulo = 'Sobrevivieron ' + vivos.length + ' de ' + n + '.';
     this.fin = {
-      tipo: final, titulo, causa: T.finalCausa[final] || '', hora: this.hora(), t: this.t,
+      tipo, titulo, subtitulo, causa: T.finalCausa[tipo] || '', hora: this.hora(), t: this.t, eliminados: tipo === 'victoria',
       personas: this.sob.map(s => {
         const trai = s.esAsesino || s.traidor;
+        const vivo = s.vivo && !trai;
         return {
-          nombre: s.nombre, color: s.color, vivo: s.vivo && !trai, traidor: trai,
-          destino: trai ? 'Era Ghostface' : (s.vivo ? s.destino : 'Muerto'),
-          muerte: s.muerte, est: s.est
+          nombre: s.nombre, color: s.color, g: s.g, vivo, traidor: trai,
+          destino: trai ? 'Era Ghostface' : (vivo ? 'Sobrevivió' : 'Muerto'),
+          muerte: s.muerte, est: s.est, parte: vivo ? this.parteMedico(s) : null
         };
       }),
       asesinos: this.ase.map(k => ({
         nombre: k.nombre, clase: k.clase, kills: k.kills, derribos: k.derribos,
-        estado: k.muerto ? (k.estadoFinal || 'Muerto') : (k.neutralizado ? (k.estadoFinal || 'Neutralizado') : (k.huido ? (k.estadoFinal || 'Se fue') : (k.fuera ? 'Nunca llegó' : 'Sigue suelto')))
+        estado: k.muerto || k.neutralizado ? (k.estadoFinal || 'Eliminado') : (k.huido ? (k.estadoFinal || 'Se fue') : (k.fuera ? 'Nunca llegó' : 'Sigue vivo'))
       }))
     };
   };
-
   /* ======================= Lotes (probabilidades) ======================= */
   function ejecutarUna(config, semilla) {
     const sim = new Simulacion(Object.assign({}, config, { semilla }), { registrar: false });
@@ -2937,7 +3035,8 @@
     const nombres = (config.personas || []).map(p => p.nombre);
     return {
       n: 0, nombres, vivos: nombres.map(() => 0), muertes: nombres.map(() => ({})), traidor: nombres.map(() => 0),
-      hist: new Array(nombres.length + 1).fill(0), finales: {}, asesinoCae: 0, duracion: 0, causas: {}, asesinos: {}
+      hist: new Array(nombres.length + 1).fill(0), finales: {}, asesinoCae: 0, duracion: 0, causas: {}, asesinos: {},
+      ilesos: nombres.map(() => 0), graves: nombres.map(() => 0), heridas: {}
     };
   }
   function acumular(acc, fin) {
@@ -2945,12 +3044,19 @@
     let v = 0;
     fin.personas.forEach((p, i) => {
       if (p.traidor) { acc.traidor[i]++; return; }
-      if (p.vivo) { acc.vivos[i]++; v++; }
+      if (p.vivo) {
+        acc.vivos[i]++; v++;
+        if (p.parte) {
+          if (/^Iles/.test(p.parte.salud)) acc.ilesos[i]++;
+          if (/gravedad|crítico/.test(p.parte.salud)) acc.graves[i]++;
+          p.parte.heridas.forEach(h => { const tipo = h.texto.replace(/ en .*/, ''); acc.heridas[tipo] = (acc.heridas[tipo] || 0) + 1; });
+        }
+      }
       else if (p.muerte) { const c = p.muerte.causa; acc.muertes[i][c] = (acc.muertes[i][c] || 0) + 1; acc.causas[c] = (acc.causas[c] || 0) + 1; }
     });
     acc.hist[Math.min(v, acc.hist.length - 1)]++;
     acc.finales[fin.tipo] = (acc.finales[fin.tipo] || 0) + 1;
-    if (fin.asesinos.length && fin.asesinos.every(a => /Muerto|Rematado|Huyó/.test(a.estado))) acc.asesinoCae++;
+    if (fin.eliminados) acc.asesinoCae++;
     fin.asesinos.forEach(a => { acc.asesinos[a.nombre] = (acc.asesinos[a.nombre] || 0) + a.kills; });
     acc.duracion += fin.t;
   }

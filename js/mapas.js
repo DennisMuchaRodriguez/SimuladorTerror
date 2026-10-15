@@ -105,7 +105,7 @@
     m.punto('telefono', 28, 14);
     m.punto('fusibles', 39, 12);
     [[19, 11], [22, 16], [28, 8], [31, 12], [10, 19]].forEach(p => m.llave(p[0], p[1]));
-    m.item(21, 15, 'cuchillo'); m.item(15, 5, 'botiquin'); m.item(28, 7, 'revolver'); m.item(31, 19, 'bate');
+    m.item(21, 15, 'cuchillo'); m.item(27, 15, 'cuchillo'); m.item(15, 5, 'botiquin'); m.item(28, 7, 'revolver'); m.item(31, 19, 'bate'); m.item(37, 12, 'hacha');
     m.s([[10, 18], [13, 19], [16, 15], [17, 18], [11, 16], [16, 19], [18, 15], [14, 15]]);
     m.k([[6, 2], [41, 2], [2, 20], [45, 20], [30, 23]]);
 
@@ -142,7 +142,7 @@
 
     m.punto('fusibles', 41, 6);
     m.punto('guarida', 3, 3);
-    m.item(19, 14, 'escopeta'); m.item(25, 14, 'cuchillo'); m.item(27, 10, 'botiquin'); m.item(37, 6, 'hacha');
+    m.item(19, 14, 'escopeta'); m.item(25, 14, 'cuchillo'); m.item(27, 10, 'botiquin'); m.item(37, 6, 'hacha'); m.item(27, 15, 'machete'); m.item(40, 8, 'bate');
     m.s([[18, 17], [20, 17], [23, 18], [24, 17], [19, 16], [23, 15], [25, 15], [17, 15]]);
     m.k([[2, 8], [45, 27], [4, 22], [30, 2], [14, 28]]);
 
@@ -182,7 +182,7 @@
     m.punto('radio', 40, 9);
     m.punto('fusibles', 45, 10);
     [[38, 10], [39, 6], [22, 19], [31, 20], [40, 17]].forEach(p => m.llave(p[0], p[1]));
-    m.item(40, 4, 'cuchillo'); m.item(37, 10, 'botiquin'); m.item(44, 11, 'hacha'); m.item(38, 20, 'sueter');
+    m.item(40, 4, 'cuchillo'); m.item(37, 10, 'botiquin'); m.item(44, 11, 'hacha'); m.item(38, 20, 'sueter'); m.item(41, 10, 'rifle'); m.item(29, 17, 'bate');
     m.s([[28, 6], [30, 6], [32, 6], [34, 6], [28, 9], [30, 9], [32, 9], [34, 9]]);
     m.k([[2, 2], [24, 1], [46, 2], [22, 28], [30, 28]]);
 
@@ -221,7 +221,7 @@
     m.punto('fusibles', 38, 4);
     m.punto('guarida', 44, 5);
     [[21, 9], [27, 10], [33, 18], [40, 10], [32, 10]].forEach(p => m.llave(p[0], p[1]));
-    m.item(33, 13, 'rifle'); m.item(18, 8, 'cuchillo'); m.item(41, 12, 'hacha'); m.item(30, 7, 'botiquin');
+    m.item(33, 13, 'rifle'); m.item(18, 8, 'cuchillo'); m.item(41, 12, 'hacha'); m.item(30, 7, 'botiquin'); m.item(43, 10, 'machete');
     m.s([[18, 14], [20, 14], [22, 14], [18, 18], [21, 18], [23, 17], [24, 14], [17, 17]]);
     m.k([[2, 2], [10, 20], [46, 1], [46, 22], [30, 28]]);
 
@@ -233,8 +233,8 @@
   const MAPAS = [
     {
       id: 'casa', nombre: 'Casa suburbana', construir: casa,
-      desc: 'Dos plantas en una: sala, cocina, pasillo, cuatro cuartos y garaje con el auto de los padres. Hay vecinos, señal de celular y la policía tarda poco.',
-      detalles: ['Señal de celular en todo el mapa', 'Teléfono fijo en la cocina', 'Llaves del auto: hay que buscarlas', 'Revólver en el dormitorio principal'],
+      desc: 'Sala, cocina, pasillo, cuatro cuartos y garaje. Pasillos estrechos y puertas que se pueden atrancar: buen sitio para tenderle una emboscada.',
+      detalles: ['Revólver en el dormitorio principal', 'Cuchillos en la cocina', 'Hacha y bate en el garaje', 'Armarios para esconderse'],
       exterior: 'el jardín', senal: 'global', zonasSenal: [], llaves: 'buscar',
       puertaPrincipal: [14, 20], rutaAuto: [[34, 15], [34, 22.5], [34, 27.2], [51, 27.2]],
       rutaAyuda: [[-3, 27.2], [10, 27.2], [16, 27.2]], ayuda: { quien: 'la policía', eta: [55, 85] },
@@ -243,8 +243,8 @@
     },
     {
       id: 'cabana', nombre: 'Cabaña en el bosque', construir: cabana,
-      desc: 'Una cabaña aislada en un claro, rodeada de bosque cerrado. Sin señal, salvo en lo alto de la colina. El auto está aparcado fuera.',
-      detalles: ['Sin señal: solo en la colina', 'Sin teléfono fijo', 'El conductor tiene las llaves', 'Escopeta vieja sobre la chimenea', 'Hacha en el cobertizo'],
+      desc: 'Una cabaña aislada en un claro, rodeada de bosque cerrado. Afuera manda el asesino; adentro hay con qué pelear.',
+      detalles: ['Escopeta vieja sobre la chimenea', 'Hacha y bate en el cobertizo', 'Machete en la despensa', 'El bosque tapa la vista'],
       exterior: 'el bosque', senal: 'zonas', zonasSenal: [[38, 0, 47, 5]], llaves: 'conductor',
       puertaPrincipal: [21, 19], rutaAuto: [[23.5, 22.5], [23.5, 25], [23.5, 32]],
       rutaAyuda: [[23.5, 33], [23.5, 25.5]], ayuda: { quien: 'el sheriff del condado', eta: [130, 180] },
@@ -253,8 +253,8 @@
     },
     {
       id: 'campamento', nombre: 'Campamento del lago', construir: campamento,
-      desc: 'Un campamento de verano cerrado junto a un lago: comedor, oficina con radio, tres cabañas, generador y un jeep. Canoa en el muelle.',
-      detalles: ['Sin señal de celular', 'Radio en la oficina', 'Llaves del jeep: hay que buscarlas', 'Canoa en el muelle para escapar', 'Hacha junto al generador'],
+      desc: 'Un campamento de verano cerrado junto a un lago: comedor, oficina, tres cabañas y el cobertizo del generador. Mucho terreno abierto entre edificios.',
+      detalles: ['Rifle de caza en la oficina', 'Hacha junto al generador', 'Un suéter viejo en la cabaña 3', 'Edificios separados: cuidado al cruzar'],
       exterior: 'el bosque', senal: 'ninguna', zonasSenal: [], llaves: 'buscar',
       puertaPrincipal: [31, 11], rutaAuto: [[46, 18.5], [43.8, 21], [43.8, 32]],
       rutaAyuda: [[43.8, 33], [43.8, 24]], ayuda: { quien: 'los guardabosques', eta: [140, 190] },
@@ -263,8 +263,8 @@
     },
     {
       id: 'granja', nombre: 'Granja en Texas', construir: granja,
-      desc: 'Una granja junto a la carretera: casa vieja, granero enorme y un maizal donde perderse. La camioneta está junto al granero.',
-      detalles: ['Señal débil: solo en la carretera', 'Teléfono fijo en la cocina', 'Llaves de la camioneta: hay que buscarlas', 'Rifle de caza en el comedor', 'Maizal: tapa la vista'],
+      desc: 'Una granja junto a la carretera: casa vieja, granero enorme y un maizal donde perderse.',
+      detalles: ['Rifle de caza en el comedor', 'Hacha y machete en el granero', 'Maizal: tapa la vista', 'El cuarto de los ganchos…'],
       exterior: 'el patio de la granja', senal: 'zonas', zonasSenal: [[0, 24, 47, 29]], llaves: 'buscar',
       puertaPrincipal: [20, 19], rutaAuto: [[38.5, 18.5], [38.5, 25.5], [51, 25.5]],
       rutaAyuda: [[-3, 25.5], [18, 25.5]], ayuda: { quien: 'el sheriff', eta: [110, 150] },

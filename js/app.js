@@ -84,6 +84,7 @@
         '<label class="campo">Arma<select id="' + id + 'arma">' + opciones(D.ARMAS, p.arma) + '</select></label>' +
         '<label class="campo">Lleva<select id="' + id + 'objeto">' + opciones(D.OBJETOS, p.objeto) + '</select></label>' +
       '</div>' +
+      '<div class="arma-info"><canvas aria-hidden="true"></canvas><span></span></div>' +
       '<div class="chips-rasgos" role="group" aria-label="Rasgos de ' + esc(p.nombre) + '">' + Object.keys(D.RASGOS).map(r =>
         '<button type="button" class="chip" data-r="' + r + '" aria-pressed="' + (p.rasgos.indexOf(r) >= 0) + '" title="' + esc(D.RASGOS[r].desc) + '">' + D.RASGOS[r].nombre + '</button>').join('') +
       '</div>' +
@@ -115,7 +116,12 @@
         guardar();
       });
     });
-    q('#' + id + 'arma').addEventListener('change', e => { p.arma = e.target.value; guardar(); });
+    const refrescarArma = () => {
+      R.iconoArma(q('.arma-info canvas'), p.arma, 70, 26);
+      q('.arma-info span').textContent = describirArma(p.arma);
+    };
+    q('#' + id + 'arma').addEventListener('change', e => { p.arma = e.target.value; guardar(); refrescarArma(); });
+    refrescarArma();
     q('#' + id + 'objeto').addEventListener('change', e => { p.objeto = e.target.value; guardar(); });
     const chips = art.querySelectorAll('.chip');
     const refrescarChips = () => chips.forEach(c => {
@@ -134,6 +140,13 @@
       cfg.personas.splice(i, 1); guardar(); renderGrupo();
     });
     return art;
+  }
+
+  function describirArma(id) {
+    const a = D.ARMAS[id];
+    if (!a || id === 'ninguna') return 'A puñetazos: daño ' + D.ARMAS.ninguna.danio.join('–') + '. Puede agarrar un arma que encuentre.';
+    if (a.tipo === 'fuego') return 'Daño ' + a.danio.join('–') + ' por disparo · ' + a.municion + ' balas · alcance ' + a.alcance + ' m' + (a.cerca ? ' · letal de cerca' : '') + '. Sin balas, golpea con la culata.';
+    return 'Daño ' + a.danio.join('–') + ' por golpe · cuerpo a cuerpo' + (a.aturde ? ' · aturde' : '') + (a.cadencia >= 1.2 ? ' · lento' : (a.cadencia <= 0.8 ? ' · rápido' : '')) + '.';
   }
 
   function agregarPersona() {
@@ -160,6 +173,7 @@
         '<div><h3>' + esc(a.nombre) + '</h3><p class="peli">' + esc(a.pelicula) + '</p></div>' +
         '<p class="resumen">' + esc(a.resumen) + '</p>' +
         '<ul>' + a.rasgosTxt.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
+        '<p class="arma-asesino"><canvas aria-hidden="true"></canvas><span>' + esc(textoArmaAsesino(clase)) + '</span></p>' +
         '<div class="contador"><span class="etq"></span>' +
           '<button type="button" class="menos" aria-label="Quitar un ' + esc(a.corto) + '">−</button>' +
           '<output aria-live="polite">0</output>' +
@@ -168,8 +182,18 @@
       art.querySelector('.menos').addEventListener('click', () => cambiarAsesino(clase, -1));
       art.querySelector('.mas').addEventListener('click', () => cambiarAsesino(clase, +1));
     });
-    requestAnimationFrame(() => cont.querySelectorAll('.asesino').forEach(art => R.retrato(art.querySelector('canvas'), art.dataset.clase, 0)));
+    requestAnimationFrame(() => cont.querySelectorAll('.asesino').forEach(art => {
+      R.retrato(art.querySelector('canvas'), art.dataset.clase, 0);
+      const a = D.ASESINOS[art.dataset.clase];
+      R.iconoArma(art.querySelector('.arma-asesino canvas'), R.ARMA_TEXTO[a.arma] || 'cuchillo', 70, 26);
+    }));
     actualizarAsesinos();
+  }
+
+  function textoArmaAsesino(clase) {
+    const a = D.ASESINOS[clase];
+    const extra = { canibal: ' (el primero caza con arco y flechas)', extranos: ' (el del saco lleva un hacha)', jason: ' (también lo lanza)' }[clase] || '';
+    return 'Arma: ' + a.arma + extra;
   }
 
   function cambiarAsesino(clase, d) {
@@ -332,13 +356,13 @@
     b.type = 'button';
     b.className = 'ficha' + (esAsesino ? ' asesino-ficha' : '');
     b.style.setProperty('--c', esAsesino ? '#d2463a' : e.color);
-    b.innerHTML = '<div class="top"><span class="punto"></span><span class="nom">' + esc(e.nombre) + '</span><span class="tag"></span></div>' +
+    b.innerHTML = '<div class="top"><span class="punto"></span><span class="nom">' + esc(e.nombre) + '</span><canvas class="ficha-arma" aria-hidden="true"></canvas><span class="tag"></span></div>' +
       '<div class="accion"></div>' +
       '<div class="medidores"><div class="medidor vida"><i></i></div>' + (esAsesino ? '<div></div>' : '<div class="medidor miedo"><i></i></div>') + '</div>' +
       '<div class="etq-med"><span>Vida</span><span class="der">' + (esAsesino ? '' : 'Miedo') + '</span></div>';
     b.addEventListener('click', () => seleccionar(render.seleccion === e ? null : e));
     $('estado').appendChild(b);
-    fichas.push({ e, el: b, asesino: esAsesino, accion: b.querySelector('.accion'), tag: b.querySelector('.tag'), vida: b.querySelector('.vida i'), miedo: b.querySelector('.miedo i'), der: b.querySelector('.der') });
+    fichas.push({ e, el: b, asesino: esAsesino, accion: b.querySelector('.accion'), tag: b.querySelector('.tag'), vida: b.querySelector('.vida i'), miedo: b.querySelector('.miedo i'), der: b.querySelector('.der'), lienzoArma: b.querySelector('.ficha-arma'), armaVista: null });
   }
 
   const ACT = { reunion: 'Con el grupo', cocina: 'En la cocina', bano: 'En el baño', afuera: 'Afuera, sin nadie cerca', pasear: 'Dando una vuelta', dormir: 'Va a dormir', trastero: 'Buscando algo' };
@@ -351,13 +375,9 @@
   function nombrePlan(pl) {
     if (!pl) return '';
     switch (pl.tipo) {
-      case 'auto': return 'escapar en ' + sim.vehiculo;
-      case 'llamar': return 'pedir ayuda';
-      case 'atrincherarse': return 'atrincherarse en ' + sim.M.salas[pl.refugio].nombre;
-      case 'enfrentar': return 'cazar al asesino';
-      case 'huir': return 'huir a pie';
-      case 'canoa': return 'huir en la canoa';
-      default: return 'esconderse hasta que amanezca';
+      case 'armarse': return 'armarse y salir a cazarlo';
+      case 'emboscada': return 'esperarlo armados en ' + sim.M.salas[pl.refugio].nombre;
+      default: return 'cazar al asesino';
     }
   }
 
@@ -416,6 +436,12 @@
     if (sim.ase.length > nAse) sim.ase.slice(nAse).forEach(k => agregarFicha(k, true));
     for (const f of fichas) {
       const e = f.e;
+      const arma = f.asesino ? R.armaDeAsesino(e.clase, e.j) : (e.esAsesino ? 'buck' : e.arma);
+      if (arma !== f.armaVista) {
+        f.armaVista = arma;
+        R.iconoArma(f.lienzoArma, arma, 46, 18);
+        f.lienzoArma.title = f.asesino || e.esAsesino ? 'Su arma' : (D.ARMAS[arma] ? D.ARMAS[arma].nombre : '');
+      }
       if (f.asesino) {
         f.tag.textContent = e.fuera ? 'En camino' : e.muerto ? 'Muerto' : e.neutralizado ? 'Fuera de combate' : e.huido ? 'Se fue' : e.derribado > 0 ? 'En el suelo' : (e.agresivo ? 'Atacando' : 'Acechando');
         f.accion.textContent = textoAsesino(e);
@@ -451,17 +477,10 @@
       partes.push('<span class="estado-chip plan">Plan: <b>' + esc(nombrePlan(sim.plan)) + '</b>' + (l ? ' · lo guía ' + esc(l.nombre) : '') + '</span>');
     } else if (!sim.alertaGeneral) partes.push('<span class="estado-chip">Nadie sospecha nada todavía</span>');
     if (!sim.luz) partes.push('<span class="estado-chip alerta">Sin luz</span>');
-    if (sim.ayuda) {
-      const q = sim.ayuda.quien.charAt(0).toUpperCase() + sim.ayuda.quien.slice(1);
-      if (sim.ayuda.fase === 'escena') partes.push('<span class="estado-chip ayuda">' + esc(q) + ' <b>ya llegó</b></span>');
-      else {
-        const min = Math.max(1, Math.round((sim.horasDesdeInicio(sim.ayuda.llega) - sim.horasDesdeInicio(sim.t)) * 60));
-        partes.push('<span class="estado-chip ayuda">' + esc(q) + ' <b>llega en ' + min + ' min</b></span>');
-      }
-    }
     const personas = sim.sob.filter(s => !s.esAsesino && !s.traidor);
-    const muertos = personas.filter(s => !s.vivo).length, salvos = personas.filter(s => s.escapado).length;
-    partes.push('<span class="estado-chip">Muertos <b>' + muertos + '</b>' + (salvos ? ' · A salvo <b>' + salvos + '</b>' : '') + '</span>');
+    const muertos = personas.filter(s => !s.vivo).length;
+    const caidos = sim.ase.filter(k => k.muerto || k.neutralizado || k.huido).length;
+    partes.push('<span class="estado-chip">Muertos <b>' + muertos + '</b> · Asesinos eliminados <b>' + caidos + ' de ' + sim.ase.length + '</b></span>');
     const html = partes.join('');
     if (html !== chipsHtml) { chipsHtml = html; $('chips').innerHTML = html; }
   }
@@ -487,27 +506,43 @@
   }
 
   /* ---------- final ---------- */
+  const SALUD_CLASE = s => /^Iles/.test(s) ? 's-ileso' : (/leves/.test(s) ? 's-leve' : (/crítico|gravedad/.test(s) ? 's-grave' : 's-medio'));
+  function parteHtml(p) {
+    const pm = p.parte;
+    if (!pm) return '';
+    const heridas = pm.heridas.length
+      ? '<ul class="heridas">' + pm.heridas.map(h => '<li class="g-' + h.gravedad + '"><b>' + esc(h.texto) + (h.veces > 1 ? ' (×' + h.veces + ')' : '') + '</b> · ' + h.gravedad + ' · ' + h.hora +
+          (h.por ? ' · ' + esc(h.por) : '') + (h.tratada ? ' · <i>' + esc(h.tratada) + '</i>' : '') + '</li>').join('') + '</ul>'
+      : '<p class="sin-heridas">Sin un rasguño.</p>';
+    const trauma = pm.trauma.length ? '<p class="trauma">' + pm.trauma.map(esc).join('. ') + '.</p>' : '';
+    return '<div class="parte"><span class="salud ' + SALUD_CLASE(pm.salud) + '">' + esc(pm.salud) + ' · ' + pm.vida + '% de vida</span>' + heridas + trauma + '</div>';
+  }
+
   function mostrarFinal() {
     if (!sim || !sim.fin || $('pantalla-sim').hidden) return;
     const f = sim.fin;
     const personas = f.personas.filter(p => !p.traidor);
     const vivos = personas.filter(p => p.vivo).length;
-    const clase = vivos === 0 ? 'masacre' : (vivos === personas.length ? 'bien' : '');
-    const lis = f.personas.map(p => {
-      let que;
+    const clase = f.tipo !== 'victoria' ? 'masacre' : (vivos === personas.length ? 'bien' : '');
+    const orden = f.personas.slice().sort((a, b) => (b.vivo - a.vivo));
+    const lis = orden.map(p => {
+      let que = '';
       if (p.traidor) que = 'Se puso la máscara de Ghostface.';
-      else if (p.vivo) que = p.destino;
-      else { const m = p.muerte; que = m.causa + ' en ' + m.lugar + ' a las ' + m.hora + (m.por ? ' · ' + m.por : ''); }
-      return '<li class="' + (p.traidor ? 'traidor' : (p.vivo ? 'vivo' : 'muerto')) + '" style="--c:' + p.color + '"><span class="punto"></span><span class="quien">' + esc(p.nombre) + '</span><span class="que">' + esc(que) + '</span></li>';
+      else if (!p.vivo) { const m = p.muerte; que = m.causa + ' en ' + m.lugar + ' a las ' + m.hora + (m.por ? ' · ' + m.por : ''); }
+      return '<li class="' + (p.traidor ? 'traidor' : (p.vivo ? 'vivo' : 'muerto')) + '" style="--c:' + p.color + '"><span class="punto"></span><span class="quien">' + esc(p.nombre) + '</span>' +
+        (p.vivo ? parteHtml(p) : '<span class="que">' + esc(que) + '</span>') + '</li>';
     }).join('');
-    const ases = f.asesinos.map(a => '<span><b>' + esc(a.nombre) + '</b>: ' + esc(a.estado) + ' · ' + a.kills + (a.kills === 1 ? ' víctima' : ' víctimas') + '</span>').join('');
+    const ases = f.asesinos.map(a => '<span><b>' + esc(a.nombre) + '</b>: ' + esc(a.estado) + ' · ' + a.kills + (a.kills === 1 ? ' víctima' : ' víctimas') +
+      (a.derribos ? ' · cayó ' + a.derribos + (a.derribos === 1 ? ' vez' : ' veces') : '') + '</span>').join('');
     const momentos = sim.momentos.slice(1, 19).map(m => '<li><b>' + m.hora + '</b> ' + esc(m.texto) + '</li>').join('');
     const el = $('final');
     el.innerHTML = '<div class="final-caja">' +
       '<p class="final-meta">' + f.hora + ' · Noche nº ' + semillaActual + ' · ' + esc(f.causa) + '</p>' +
       '<h2 id="final-titulo" class="' + clase + '">' + esc(f.titulo) + '</h2>' +
-      '<ul class="destinos">' + lis + '</ul>' +
+      '<p class="final-sub">' + esc(f.subtitulo) + '</p>' +
       '<p class="final-asesinos">' + ases + '</p>' +
+      (vivos ? '<h3 class="final-h3">Parte médico de los que sobrevivieron</h3>' : '') +
+      '<ul class="destinos">' + lis + '</ul>' +
       '<details><summary>Momentos clave de la noche</summary><ol>' + momentos + '</ol></details>' +
       '<div class="final-botones">' +
         '<button type="button" class="btn btn-primario" data-a="otra">Otra noche</button>' +
@@ -569,17 +604,19 @@
     let mejorI = 0, peorI = 0;
     personaPct.forEach((v, i) => { if (v > personaPct[mejorI]) mejorI = i; if (v < personaPct[peorI]) peorI = i; });
     const fmt = v => v.toFixed(1).replace('.', ',');
-    const frase = 'En ' + N + ' noches, alguien salió con vida en ' + alguno + '. ' +
+    const frase = 'En ' + N + ' noches, el grupo eliminó ' + (Object.keys(a.asesinos).length > 1 ? 'a todos los asesinos' : 'al asesino') + ' en ' + a.asesinoCae + ' y alguien salió con vida en ' + alguno + '. ' +
       (nombres.length > 1 ? nombres[mejorI] + ' es quien más sobrevive (' + Math.round(personaPct[mejorI] * 100) + '%) y ' + nombres[peorI] + ' quien menos (' + Math.round(personaPct[peorI] * 100) + '%).' : '');
     let html = '<p>' + esc(frase) + '</p><div class="titulares">' +
+      titular(pct(a.asesinoCae, N) + '%', 'Eliminan ' + (Object.keys(a.asesinos).length > 1 ? 'a los asesinos' : 'al asesino')) +
       titular(pct(alguno, N) + '%', 'Alguien sobrevive') + titular(pct(todos, N) + '%', 'Sobreviven todos') +
-      titular(pct(nadie, N) + '%', 'No sobrevive nadie') + titular(fmt(prom), 'Sobrevivientes por noche, de ' + (noches[0] ? noches[0].total : nombres.length)) +
+      titular(fmt(prom), 'Sobrevivientes por noche, de ' + (noches[0] ? noches[0].total : nombres.length)) +
       '</div>';
 
     html += '<h3>Probabilidad de sobrevivir, persona por persona</h3><div class="barras">' + nombres.map((nm, i) => {
       const causas = Object.entries(a.muertes[i]).sort((x, y) => y[1] - x[1]);
       const muertes = causas.reduce((s, c) => s + c[1], 0);
       const nota = (causas.length ? 'Cuando muere, suele ser: ' + causas[0][0].toLowerCase() + ' (' + pct(causas[0][1], muertes) + '%).' : 'No murió en ninguna noche.') +
+        (a.vivos[i] ? ' Cuando sobrevive: sale iles' + (lote.conf.personas[i] && lote.conf.personas[i].genero === 'f' ? 'a' : 'o') + ' el ' + pct(a.ilesos[i], a.vivos[i]) + '% de las veces y con heridas graves el ' + pct(a.graves[i], a.vivos[i]) + '%.' : '') +
         (a.traidor[i] ? ' Fue el traidor en ' + a.traidor[i] + ' noches.' : '');
       const v = Math.round(personaPct[i] * 100);
       return '<div class="barra-fila" data-tip="' + esc(nm + ': sobrevivió ' + a.vivos[i] + ' de ' + (N - a.traidor[i]) + ' noches. ' + nota) + '">' +
@@ -594,7 +631,7 @@
       '</div><div class="ejes">' + a.hist.map((h, k) => '<span>' + k + '</span>').join('') + '</div>' +
       '<div class="ejes"><span>personas vivas al terminar la noche</span></div>';
 
-    const NOMBRE_FINAL = { escape: 'Escapan en el vehículo', huida: 'Huyen a pie o en canoa', rescate: 'Llega la ayuda a tiempo', amanecer: 'Aguantan hasta el amanecer', victoria: 'Detienen a los asesinos', masacre: 'Mueren todos' };
+    const NOMBRE_FINAL = { victoria: 'Eliminan al asesino (misión cumplida)', sinResolver: 'Amanece y el asesino sigue vivo (misión fallida)', masacre: 'El asesino los mata a todos' };
     html += '<h3>Cómo termina la noche</h3><table class="tabla"><tbody>' + Object.entries(a.finales).sort((x, y) => y[1] - x[1]).map(f =>
       '<tr><td>' + esc(NOMBRE_FINAL[f[0]] || f[0]) + '</td><td>' + pctTxt(f[1], N) + '%</td></tr>').join('') + '</tbody></table>';
 
@@ -603,9 +640,14 @@
       html += '<h3>Cómo mueren</h3><table class="tabla"><tbody>' + Object.entries(a.causas).sort((x, y) => y[1] - x[1]).map(c =>
         '<tr><td>' + esc(c[0]) + '</td><td>' + pctTxt(c[1], totalMuertes) + '%</td></tr>').join('') + '</tbody></table>';
     }
+    const totalHeridas = Object.values(a.heridas).reduce((s, v) => s + v, 0);
+    if (totalHeridas) {
+      html += '<h3>Heridas más comunes entre los que sobreviven</h3><table class="tabla"><tbody>' + Object.entries(a.heridas).sort((x, y) => y[1] - x[1]).slice(0, 8).map(h =>
+        '<tr><td>' + esc(h[0]) + '</td><td>' + pctTxt(h[1], totalHeridas) + '%</td></tr>').join('') + '</tbody></table>';
+    }
     html += '<h3>Los asesinos</h3><table class="tabla"><tbody>' + Object.entries(a.asesinos).map(k =>
       '<tr><td>' + esc(k[0]) + ': víctimas por noche</td><td>' + fmt(k[1] / N) + '</td></tr>').join('') +
-      '<tr><td>Noches en que todos los asesinos acaban muertos, rematados o huyendo</td><td>' + pct(a.asesinoCae, N) + '%</td></tr></tbody></table>';
+      '<tr><td>Noches en que el grupo elimina a todos los asesinos</td><td>' + pct(a.asesinoCae, N) + '%</td></tr></tbody></table>';
 
     const res = $('lote-res');
     res.innerHTML = html; res.hidden = false;

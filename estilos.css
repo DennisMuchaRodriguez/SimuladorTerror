@@ -77,7 +77,11 @@ input[type=range] { width: 100%; accent-color: var(--ambar); height: 18px; }
 .asesinos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
 .asesino { background: var(--panel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px 12px; align-content: start; }
 .asesino.elegido { border-color: var(--sangre); box-shadow: 0 0 0 1px var(--sangre) inset; }
-.asesino canvas { width: 72px; height: 72px; border-radius: 6px; display: block; }
+.asesino > canvas { width: 72px; height: 72px; border-radius: 6px; display: block; }
+.arma-asesino { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--hueso); padding: 6px 8px; background: var(--panel-2); border-radius: 6px; }
+.arma-asesino canvas { width: 70px; height: 26px; flex: none; }
+.arma-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--tenue); padding: 6px 8px; background: var(--panel-2); border-radius: 6px; min-height: 38px; }
+.arma-info canvas { width: 70px; height: 26px; flex: none; }
 .asesino h3 { font-family: var(--f-cartel); font-weight: 400; font-size: 21px; letter-spacing: 0.02em; margin: 0; line-height: 1.1; }
 .peli { margin: 2px 0 0; font-size: 12px; color: var(--tenue); }
 .asesino .resumen { grid-column: 1 / -1; margin: 0; font-size: 14px; }
@@ -155,7 +159,8 @@ input[type=range] { width: 100%; accent-color: var(--ambar); height: 18px; }
 .ficha .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ficha .punto { width: 11px; height: 11px; border-radius: 50%; background: var(--c); flex: none; }
 .ficha .nom { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ficha .tag { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tenue); white-space: nowrap; }
+.ficha-arma { width: 46px; height: 18px; margin-left: auto; flex: none; }
+.ficha .tag { margin-left: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tenue); white-space: nowrap; }
 .ficha .accion { font-size: 13px; color: var(--tenue); min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ficha .medidores { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .medidor { height: 5px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
@@ -207,6 +212,20 @@ input[type=range] { width: 100%; accent-color: var(--ambar); height: 18px; }
 .destinos .punto { width: 11px; height: 11px; border-radius: 50%; background: var(--c); align-self: center; }
 .destinos .quien { font-weight: 700; }
 .destinos .que { grid-column: 2; font-size: 14px; color: var(--tenue); }
+.destinos .parte { grid-column: 2; display: grid; gap: 4px; font-size: 14px; }
+.salud { justify-self: start; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 4px; border: 1px solid currentColor; }
+.salud.s-ileso { color: var(--vivo); }
+.salud.s-leve { color: var(--hueso); }
+.salud.s-medio { color: var(--ambar); }
+.salud.s-grave { color: var(--sangre); }
+.heridas { margin: 0; padding-left: 18px; color: var(--tenue); display: grid; gap: 2px; }
+.heridas b { color: var(--hueso); font-weight: 600; }
+.heridas .g-grave b { color: #ef8a80; }
+.heridas i { color: var(--vivo); font-style: normal; }
+.sin-heridas { margin: 0; color: var(--tenue); }
+.trauma { margin: 0; font-size: 13px; color: var(--tenue); font-style: italic; }
+.final-sub { margin: -8px 0 0; font-size: 17px; }
+.final-h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); }
 .destinos .vivo .quien::after { content: ' · sobrevivió'; color: var(--vivo); font-weight: 600; }
 .destinos .muerto .quien::after { content: ' · muerto'; color: var(--sangre); font-weight: 600; }
 .destinos .traidor .quien::after { content: ' · era el asesino'; color: #ef8a80; font-weight: 600; }

@@ -72,14 +72,25 @@
       enfrentar: ['{n} cuenta las armas y decide: «Somos más. Vamos a por él».', '«Si nos separamos, nos mata uno por uno. Juntos le damos caza», dice {n}.'],
       huir: ['«A la carretera, corriendo. No miren atrás», ordena {n}.', '{n}: «Salimos a pie. Ya. Todos juntos».'],
       esconderse: ['«Escóndanse. No hagan ruido. Esperen a que amanezca», susurra {n}.'],
+      armarse: ['{n} lo tiene claro: «Con las manos no le ganamos. Primero agarramos lo que sirva como arma».', '«Cuchillos, palos, lo que sea. Armémonos y después vamos por él», ordena {n}.'],
+      emboscada: ['{n} señala {l}: «Lo esperamos ahí adentro. Cuando entre, le caemos todos encima».', '«Que venga él. En {l} lo vamos a estar esperando», dice {n}.'],
       canoa: ['{n} mira el lago: «La canoa. Al agua, ya».']
     },
     planRazon: {
-      inmortal: 'Ya lo vieron levantarse: a eso no se le gana peleando.',
-      sinArmas: 'No tienen con qué defenderse.',
+      inmortal: 'Ya lo vieron levantarse: cuando caiga, hay que rematarlo en el suelo.',
+      sinArmas: 'Casi nadie tiene con qué pelear.',
       armas: 'Tienen armas y son varios.',
       rompePuertas: 'Ya vieron cómo atraviesa las puertas.',
       ayuda: 'La ayuda ya viene en camino; solo hay que aguantar.'
+    },
+    salenACazar: ['{n} se cansa de esperar: «No va a venir. Vamos a buscarlo nosotros».'],
+    finalVictoria: ['El silencio vuelve de golpe. {a} ya no se mueve. Los que quedan se miran, cubiertos de sangre, sin poder creerlo.', 'Se acabó. {a} queda tendido en el suelo y nadie se atreve a soltar el arma hasta que sale el sol.'],
+    finalSinResolver: ['Amanece. {a} retrocede hacia la oscuridad y desaparece. Sigue vivo, y todos lo saben.'],
+    remataCaido: ['{n} y los demás no le dan tregua a {a}: lo golpean en el suelo hasta que deja de moverse para siempre.', '{a} intenta incorporarse, pero {n} no se lo permite. Lo remata en el suelo.'],
+    asesinoFinal: {
+      jason: ['Jason cae por tercera vez. Intenta levantarse, se tambalea… y se derrumba. Esta vez no se mueve más.'],
+      michael: ['Michael cae una vez más. Su mano se crispa un último segundo y queda inmóvil. Por esta noche, la Forma terminó.'],
+      default: ['{a} cae y ya no se levanta.']
     },
     lider: ['{n} toma el liderazgo del grupo.', 'Sin {o}, {n} asume el mando.'],
     llavesBuscar: ['{n} revuelve {l} buscando las llaves.'],
@@ -164,6 +175,7 @@
       canibal: ['{a} cae con un último chillido. No se mueve más.'],
       extranos: ['{a} cae al suelo. {n} le quita la máscara: es una persona cualquiera. «¿Por qué nosotros?»', '{a} se desploma. Bajo la máscara hay un rostro normal, casi aburrido.'],
       chucky: ['Chucky queda destrozado en el suelo. Su vocecita se apaga: «No… otra vez no…»'],
+      leatherface: ['Leatherface se desploma con la motosierra todavía rugiendo. {n} la aparta de una patada y el motor se apaga. Se acabó.'],
       default: ['{a} muere.']
     },
     ultimoSusto: ['Ghostface se incorpora de golpe con el cuchillo en alto. ¡Último susto!'],
@@ -242,12 +254,9 @@
     traidor: ['{n} saca una máscara de Ghostface de la mochila. «¿Sorprendidos? Siempre hay dos».', '{n} se pone la máscara y saca un cuchillo. «Las películas no crean psicópatas, solo los hacen más creativos».'],
 
     finalCausa: {
-      escape: 'Escaparon en el vehículo',
-      rescate: 'Llegó la ayuda',
-      amanecer: 'Aguantaron hasta el amanecer',
-      victoria: 'Detuvieron a los asesinos',
+      victoria: 'Misión cumplida: eliminaron al asesino',
       masacre: 'El asesino ganó',
-      huida: 'Huyeron'
+      sinResolver: 'Misión fallida: el asesino sigue vivo'
     }
   };
 
@@ -264,7 +273,7 @@
     llaves: ['¿Dónde están?', '¡Las llaves!', 'Busquen en los cajones'],
     reparar: ['Dame un minuto', 'Casi…', 'Ilumíname aquí'],
     llamar: ['¡911! ¡Vengan!', '¿Me oyen?', '¡Mayday!'],
-    rematar: ['¡Quédate abajo!', '¡Se acabó!'],
+    rematar: ['¡Quédate abajo!', '¡Se acabó!', '¡No te levantes!'],
     comprobar: ['¿Está muerto?', 'Creo que ya…'],
     barricada: ['¡Traba la puerta!', '¡Ayúdame con esto!'],
     chucky: ['¡Hola, soy Chucky!', '¡Juguemos!', 'Ja ja ja ja'],

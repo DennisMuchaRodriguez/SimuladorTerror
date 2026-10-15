@@ -1,8 +1,10 @@
 # Noche de Slashers
 
-Simulador 2D de supervivencia: armas tu grupo (tú y tus amigos, cada uno con sus características), eliges a los asesinos y el lugar, y miras minuto a minuto si sobreviven a la noche. También calcula probabilidades simulando 100 noches seguidas.
+Simulador 2D de terror: armas tu grupo (tú y tus amigos, cada uno con sus características), eliges a los asesinos y el lugar, y miras minuto a minuto qué pasa. **No hay escapatoria**: no hay auto, ni canoa, ni policía que llegue. Para sobrevivir a la noche el grupo tiene que **eliminar al asesino**. Al final ves quién sobrevivió y el **parte médico** de cada superviviente: qué heridas tiene, de qué gravedad, si se las curaron y qué trauma le quedó.
 
-No necesita instalar nada: es HTML, CSS y JavaScript puro. Está fuera de `Assets/`, así que Unity no lo importa.
+También calcula probabilidades simulando 100 noches seguidas.
+
+No necesita instalar nada: es HTML, CSS y JavaScript puro.
 
 ## Cómo abrirlo
 
@@ -23,31 +25,36 @@ No necesita instalar nada: es HTML, CSS y JavaScript puro. Está fuera de `Asset
 3. **El lugar**: casa suburbana, cabaña en el bosque, campamento del lago o granja en Texas.
 4. **Reglas**: con o sin celulares, y la opción de que uno de tus amigos sea un Ghostface traidor.
 
-Luego **Ver la noche** (simulación animada con narración) o **Calcular probabilidades** (100 noches simuladas, con la probabilidad de sobrevivir de cada persona, cuántos sobreviven por noche, cómo termina y cómo mueren). Desde las probabilidades puedes ver la peor y la mejor noche: el resultado es exactamente el mismo que en el cálculo.
+Luego **Ver la noche** (simulación animada con narración) o **Calcular probabilidades** (100 noches simuladas: en cuántas eliminan al asesino, la probabilidad de sobrevivir de cada persona y con qué heridas suele salir, cuántos sobreviven por noche, cómo termina, cómo mueren y qué heridas son las más comunes). Desde las probabilidades puedes ver la peor y la mejor noche: el resultado es exactamente el mismo que en el cálculo.
 
 Cada noche tiene un número. Si escribes el mismo número en "Noche nº" con el mismo grupo, se repite exactamente igual.
 
 ## Qué se simula
 
-**Las personas** perciben con la vista (con campo de visión, luz y oscuridad) y el oído. Tienen miedo, que sube al ver al asesino o un cadáver; si supera su valentía entran en pánico y huyen o se esconden. Cuando alguien da la alarma, el más listo o el líder elige un plan según lo que tienen y lo que saben:
+**Las personas** perciben con la vista (con campo de visión, luz y oscuridad) y el oído. Tienen miedo, que sube al ver al asesino o un cadáver; si supera su valentía entran en pánico, pero junto al líder y a sus amigos aguantan más. Cuando alguien da la alarma, el más listo o el líder elige cómo acabar con el asesino según lo que tienen y lo que saben:
 
-- buscar las llaves, reparar el vehículo si lo sabotearon y escapar;
-- pedir ayuda (celular con o sin señal, teléfono fijo o radio) y aguantar hasta que llegue;
-- atrincherarse en el cuarto con menos puertas y ventanas;
-- cazar al asesino si tienen armas y no parece inmortal;
-- huir a pie o en canoa;
-- esconderse hasta el amanecer.
+- **armarse**: ir por los cuchillos, hachas, bates o escopetas que hay en el lugar y luego salir a cazarlo;
+- **cazarlo**: ir todos juntos a donde lo vieron por última vez, o patrullar hasta encontrarlo;
+- **emboscarlo**: esperarlo armados en el cuarto con menos entradas y caerle encima cuando entre. Si no aparece, salen a buscarlo.
 
-Además disparan (la puntería, la distancia, la oscuridad y el miedo afectan), pelean cuerpo a cuerpo, se curan, recogen armas que encuentran, rescatan a quien está agarrado, rematan a un asesino caído (si saben que se levanta) y cometen los errores clásicos: ir solos a ver un ruido, revisar los fusibles, acercarse a comprobar si está muerto…
+Además disparan (la puntería, la distancia, la oscuridad y el miedo afectan; con cuidado de no darle a un amigo), pelean cuerpo a cuerpo y en grupo, se curan, recogen armas que encuentran, rescatan a quien está agarrado y cometen los errores clásicos: ir solos a ver un ruido, revisar los fusibles, acercarse a comprobar si está muerto…
+
+**Jason y Michael** caen y se vuelven a levantar. Para eliminarlos hay que rematarlos mientras están en el suelo o tumbarlos tres veces. Los demás mueren como cualquiera, aunque Leatherface aguanta muchísimo castigo.
+
+Si amanece y el asesino sigue vivo, la misión fracasa aunque haya supervivientes.
+
+**El parte médico** de cada superviviente dice cómo quedó (ileso, heridas leves, herido, herido de gravedad o en estado crítico), con cada herida según el arma que la causó (corte de machete, costillas rotas, puñalada, desgarro de motosierra, hachazo, flecha clavada, pierna atrapada en un cepo, marcas de estrangulamiento…), si alguien se la vendó y el trauma que le quedó (vio morir a sus amigos, crisis de nervios, estrés postraumático).
+
+**Las armas** se ven en la mano de cada uno: el machete de Jason (que además lanza), el cuchillo de cocina de Michael, el Buck 120 de Ghostface, la motosierra de Leatherface con la cadena girando, el hacha y el arco de los caníbales, y las armas del grupo. Se animan los tajos, las estocadas, el retroceso y el fogonazo de los disparos, y las hojas se manchan de sangre cuando ya mataron.
 
 **Los asesinos** se comportan como en sus películas:
 
 | Asesino | Cómo ataca |
 |---|---|
-| Jason Voorhees | Casi inmortal: cae y se levanta. Nunca corre, pero aparece donde no lo esperas. Lanza el machete, rompe puertas y destroza el vehículo. |
-| Michael Myers | Acecha con paciencia y observa desde lejos. Corta el teléfono y la luz, embosca en cuartos oscuros y desaparece si le das la espalda. |
+| Jason Voorhees | Casi inmortal: cae y se levanta. Nunca corre, pero aparece donde no lo esperas. Lanza el machete y rompe puertas. |
+| Michael Myers | Acecha con paciencia y observa desde lejos. Corta la luz, embosca en cuartos oscuros y desaparece si le das la espalda. |
 | Ghostface | Humano, rápido y torpe. Llama por teléfono, separa al grupo con engaños y ataca a quien está solo. Puede dar un último susto. |
-| Leatherface | Motosierra casi siempre letal, se le oye desde lejos, atraviesa puertas. Si lo hieren mucho, huye bailando con la motosierra. |
+| Leatherface | Motosierra casi siempre letal, se le oye desde lejos, atraviesa puertas y aguanta muchísimo castigo. |
 | Caníbales (Camino hacia el terror) | Cazan en manada, ponen trampas, el primero dispara flechas y son más rápidos en el bosque. Arrastran los cuerpos. |
 | Los Extraños | Muy pacientes: tocan la puerta, aparecen en las ventanas y atacan juntos cuando el grupo está agotado. |
 | Chucky | Parece un muñeco: nadie se alarma. Pequeño, difícil de ver y de acertar, pero débil. |
@@ -60,7 +67,7 @@ Además disparan (la puntería, la distancia, la oscuridad y el miedo afectan), 
 | `js/mapas.js` | Los cuatro lugares, construidos casilla por casilla (1 casilla = 1 metro). |
 | `js/textos.js` | Todas las frases de la narración y de los globos de diálogo. |
 | `js/motor.js` | La simulación. No depende del navegador. |
-| `js/render.js` | El dibujo en canvas: mapa, luces, personajes y efectos. |
+| `js/render.js` | El dibujo en canvas: mapa, luces, personajes, armas animadas y efectos. |
 | `js/app.js` | La interfaz: configuración, simulación en vivo y probabilidades. |
 | `herramientas/balance.js` | Prueba de balance desde la terminal. |
 | `herramientas/empaquetar.js` | Genera la versión de un solo archivo. |

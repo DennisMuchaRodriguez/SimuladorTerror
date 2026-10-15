@@ -24,7 +24,13 @@ if (relato) {
   while (!sim.fin) sim.paso();
   sim.log.forEach(e => console.log(e.hora + '  [' + e.tipo + '] ' + e.texto));
   console.log('\n== ' + sim.fin.titulo + ' (' + sim.fin.causa + ')');
-  sim.fin.personas.forEach(p => console.log('  ' + p.nombre.padEnd(10) + (p.vivo || p.traidor ? p.destino : 'Muerto: ' + p.muerte.causa + ' en ' + p.muerte.lugar + ' (' + p.muerte.por + ')')));
+  sim.fin.personas.forEach(p => {
+    console.log('  ' + p.nombre.padEnd(10) + (p.vivo || p.traidor ? p.destino : 'Muerto: ' + p.muerte.causa + ' en ' + p.muerte.lugar + ' (' + p.muerte.por + ')'));
+    if (!p.parte) return;
+    console.log('             ' + p.parte.salud + ' · ' + p.parte.vida + '% de vida');
+    p.parte.heridas.forEach(h => console.log('             - ' + h.texto + (h.veces > 1 ? ' x' + h.veces : '') + ' (' + h.gravedad + (h.tratada ? ', ' + h.tratada : '') + ')'));
+    p.parte.trauma.forEach(t => console.log('             * ' + t));
+  });
   sim.fin.asesinos.forEach(a => console.log('  ' + a.nombre + ': ' + a.estado + ', ' + a.kills + ' víctimas'));
   process.exit(0);
 }
@@ -39,8 +45,8 @@ const pct = v => (100 * v / acc.n).toFixed(0).padStart(3) + '%';
 console.log(`Mapa ${mapa} · ${JSON.stringify(asesinos)} · ${acc.n} noches · mapa ${t1 - t0} ms · simulación ${t2 - t1} ms (${((t2 - t1) / acc.n).toFixed(1)} ms/noche)`);
 acc.nombres.forEach((n, i) => {
   const causas = Object.entries(acc.muertes[i]).sort((a, b) => b[1] - a[1]).slice(0, 2).map(c => c[0] + ' ' + c[1]).join(', ');
-  console.log('  ' + n.padEnd(8) + ' sobrevive ' + pct(acc.vivos[i]) + '   ' + causas);
+  console.log('  ' + n.padEnd(8) + ' sobrevive ' + pct(acc.vivos[i]) + ' (ilesos ' + pct(acc.ilesos[i]).trim() + ', graves ' + pct(acc.graves[i]).trim() + ')   ' + causas);
 });
 console.log('  Supervivientes por noche: ' + acc.hist.map((h, i) => i + ':' + pct(h).trim()).join('  '));
 console.log('  Finales: ' + Object.entries(acc.finales).map(f => f[0] + ' ' + pct(f[1]).trim()).join(', '));
-console.log('  Asesinos detenidos: ' + pct(acc.asesinoCae).trim() + ' · duración media ' + (acc.duracion / acc.n).toFixed(0) + ' s');
+console.log('  Asesinos eliminados: ' + pct(acc.asesinoCae).trim() + ' · duración media ' + (acc.duracion / acc.n).toFixed(0) + ' s');
